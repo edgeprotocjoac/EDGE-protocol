@@ -5,8 +5,10 @@ import { LandingHero } from '@/components/organisms/landing/LandingHero';
 import { SupportedEcosystem } from '@/components/organisms/landing/SupportedEcosystem';
 import { LandingStats } from '@/components/organisms/landing/LandingStats';
 import { FeaturesBento } from '@/components/organisms/landing/FeaturesBento';
-import { WorkProcess } from '@/components/organisms/landing/WorkProcess';
-import { LandingFAQ } from '@/components/organisms/landing/LandingFAQ';
+import { SocialTradePreviewSection } from '@/components/organisms/landing/SocialTradePreviewSection';
+import { MarketSignalsSection } from '@/components/organisms/landing/MarketSignalsSection';
+import { TraderExecutionSection } from '@/components/organisms/landing/TraderExecutionSection';
+import { AlertsPortfolioSection } from '@/components/organisms/landing/AlertsPortfolioSection';
 import { LandingCTA } from '@/components/organisms/landing/LandingCTA';
 import { LandingFooter } from '@/components/organisms/landing/LandingFooter';
 
@@ -25,8 +27,10 @@ export default function LandingPage() {
         <SupportedEcosystem />
         <LandingStats />
         <FeaturesBento />
-        <WorkProcess />
-        <LandingFAQ />
+        <SocialTradePreviewSection />
+        <MarketSignalsSection />
+        <TraderExecutionSection />
+        <AlertsPortfolioSection />
         <LandingCTA />
         <LandingFooter />
       </div>

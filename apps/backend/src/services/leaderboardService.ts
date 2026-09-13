@@ -54,17 +54,9 @@ export class LeaderboardService {
       return [];
     }
 
-    // Deduplicate by profile_id so each creator appears once
-    const seenProfiles = new Set<string>();
-    const uniqueStats = (stats || []).filter((s: any) => {
-      if (!s.profile_id || seenProfiles.has(s.profile_id)) return false;
-      seenProfiles.add(s.profile_id);
-      return true;
-    });
-
-    // Fetch user details from users table
+    // Deduplicate by profile_id, handle, and display_name so each creator appears once
     const userMap = new Map<string, any>();
-    let userList: any[] = [];
+    const userList: any[] = [];
 
     try {
       const { data: userRows } = await supabase
@@ -73,27 +65,53 @@ export class LeaderboardService {
         .order('created_at', { ascending: true });
 
       if (userRows && userRows.length > 0) {
-        userList = userRows;
         userRows.forEach((u: any) => {
-          if (u.id) userMap.set(u.id, u);
-          if (u.wallet_address) userMap.set(u.wallet_address.toLowerCase(), u);
+          if (u.id) {
+            userMap.set(u.id, u);
+            userMap.set(u.id.toLowerCase(), u);
+          }
+          if (u.wallet_address) {
+            userMap.set(u.wallet_address.toLowerCase(), u);
+          }
+          if (u.handle) {
+            userMap.set(u.handle.toLowerCase(), u);
+          }
         });
       }
     } catch (err) {
       console.warn('[LeaderboardService] Failed to fetch users for leaderboard:', err);
     }
 
-    return uniqueStats.map((item: any, index: number) => {
-      const user = userMap.get(item.profile_id) || (userList.length > 0 ? userList[index % userList.length] : null);
-      const shortId = (user?.wallet_address || user?.id || item.profile_id || '').replace(/^0x/, '').replace(/-/g, '').slice(0, 6);
+    const seenProfiles = new Set<string>();
+    const seenHandles = new Set<string>();
+    const seenDisplayNames = new Set<string>();
 
-      const handle = user?.handle || user?.username || (shortId ? `user${shortId}` : 'user000');
+    const result: LeaderboardEntryDTO[] = [];
+
+    for (const item of stats || []) {
+      const rawPid = (item.profile_id || '').toLowerCase().trim();
+      const user = userMap.get(item.profile_id) || userMap.get(rawPid);
+
+      const shortId = (user?.wallet_address || user?.id || item.profile_id || '').replace(/^0x/, '').replace(/-/g, '').slice(0, 6);
+      const handle = user?.handle || user?.username || (shortId ? `user_${shortId}` : 'creator_anon');
       const displayName = user?.display_name || user?.username || user?.handle || handle;
+
+      const handleKey = handle.toLowerCase().trim();
+      const nameKey = displayName.toLowerCase().trim();
+
+      if (rawPid && seenProfiles.has(rawPid)) continue;
+      if (handleKey && seenHandles.has(handleKey)) continue;
+      if (nameKey && seenDisplayNames.has(nameKey)) continue;
+
+      if (rawPid) seenProfiles.add(rawPid);
+      if (handleKey) seenHandles.add(handleKey);
+      if (nameKey) seenDisplayNames.add(nameKey);
+
       const avatarUrl = user?.avatar_url || `https://api.dicebear.com/9.x/bottts/svg?seed=${handle}`;
       const isVerified = Boolean(user?.is_verified ?? true);
 
-      return {
-        rank: index + 1,
+      result.push({
+        rank: result.length + 1,
         profileId: user?.id || item.profile_id,
         handle,
         displayName,
@@ -104,7 +122,11 @@ export class LeaderboardService {
         resolvedCalls: Number(item.resolved_calls || 0),
         followersCount: Number(item.followers_count || 0),
         volumeAttributed: (item.volume_attributed || 0).toString(),
-      };
-    });
+      });
+
+      if (result.length >= 10) break;
+    }
+
+    return result;
   }
 }

@@ -3,7 +3,7 @@ import GlassSurface from '@/components/GlassSurface';
 
 export const FeaturesBento = () => {
   return (
-    <section className="py-28 px-6 max-w-5xl mx-auto relative z-10">
+    <section id="features" className="py-28 px-6 max-w-5xl mx-auto relative z-10">
       <div className="text-center mb-16">
         <GlassSurface
           width="auto"
@@ -14,53 +14,24 @@ export const FeaturesBento = () => {
           opacity={0.3}
           className="inline-flex mb-6"
         >
-          <div className="px-1 text-[11px] font-medium text-white/70 whitespace-nowrap">
-            Protocol Features
+          <div className="px-3 py-1 text-[11px] font-semibold text-white/80 uppercase tracking-wider flex items-center gap-2">
+            <svg className="w-1.5 h-1.5 fill-white animate-pulse" viewBox="0 0 6 6">
+              <circle cx="3" cy="3" r="3" />
+            </svg>
+            Verified Callouts
           </div>
         </GlassSurface>
-        <h2 className="text-[32px] md:text-[40px] font-semibold leading-tight mb-4">
-          Powerful Markets Built For <br/> Robinhood Chain
+        <h2 className="text-[32px] md:text-[44px] font-bold leading-tight mb-4 text-white">
+          See the trade behind the take.
         </h2>
-        <p className="text-[14px] text-white/50 max-w-lg mx-auto">
-          Discover how the EDGE protocol transforms decentralized predictions with deep liquidity and seamless resolution.
+        <p className="text-[14px] md:text-[16px] text-white/60 max-w-xl mx-auto leading-relaxed">
+          Anyone can post an opinion. EDGE Protocol lets traders attach a real prediction-market position to their callout.
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
         
-        {/* Bento 1: Native to Robinhood Chain */}
-        <div className="md:col-span-4 h-full">
-          <GlassSurface
-            width="100%"
-            height="100%"
-            borderRadius={16}
-            backgroundOpacity={0.03}
-            opacity={0.3}
-            className="w-full h-full relative group"
-          >
-            <div className="p-6 flex flex-col h-full w-full relative z-10">
-              <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
-              {/* Visual */}
-              <div className="h-32 mb-6 flex items-center justify-center relative">
-                <div className="w-full max-w-[200px] h-14 bg-black/40 rounded-xl border border-white/5 shadow-xl flex items-center px-4 gap-3 z-10">
-                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-black">RH</div>
-                  <div>
-                    <div className="text-[12px] font-medium">Native Network</div>
-                    <div className="text-[10px] text-white/40">Chain ID 4663</div>
-                  </div>
-                </div>
-                {/* Blur backdrop behind visual */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150px] h-[100px] bg-white/30 blur-[40px] z-0"></div>
-              </div>
-              <div className="mt-auto">
-                <h3 className="text-[15px] font-semibold mb-2">Built for Robinhood Chain</h3>
-                <p className="text-[12px] text-white/40 leading-relaxed">Experience ultra-fast finality, low fees, and deep liquidity natively on the network.</p>
-              </div>
-            </div>
-          </GlassSurface>
-        </div>
-
-        {/* Bento 2: Equities, Crypto & Macro */}
+        {/* Bento 1: YES or NO Conviction (WIDE CARD: col-span-8) */}
         <div className="md:col-span-8 h-full">
           <GlassSurface
             width="100%"
@@ -68,110 +39,193 @@ export const FeaturesBento = () => {
             borderRadius={16}
             backgroundOpacity={0.03}
             opacity={0.3}
-            className="w-full h-full relative group"
+            className="w-full h-full relative group hover:border-white/20 transition-all"
           >
             <div className="p-6 flex flex-col md:flex-row gap-6 w-full h-full relative z-10">
-              <div className="absolute bottom-0 right-0 w-[400px] h-[150px] bg-white/20 blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-2xl"></div>
               
-              <div className="flex-1 flex flex-col justify-end">
-                <h3 className="text-[15px] font-semibold mb-2">Equities, Crypto & Macro</h3>
-                <p className="text-[12px] text-white/40 leading-relaxed max-w-[200px]">Trade markets that matter. From stock token prices to macroeconomic policy outcomes.</p>
+              <div className="flex-1 flex flex-col justify-between">
+                <div>
+                  <span className="inline-block text-[9px] bg-white/10 text-white/80 border border-white/15 px-2 py-0.5 rounded font-mono font-semibold mb-3">
+                    VERIFIED ON-CHAIN
+                  </span>
+                  <h3 className="text-[17px] font-semibold mb-2 text-white">YES or NO Conviction</h3>
+                  <p className="text-[13px] text-white/50 leading-relaxed max-w-[260px]">
+                    Anyone can post an opinion. Traders attach explicit conviction directions (BUY YES or BUY NO) backed by real capital to every callout.
+                  </p>
+                </div>
+                <div className="text-[11px] text-white/30 font-mono mt-4">
+                  Settled with $USDG on Robinhood Chain
+                </div>
               </div>
-              
-              {/* Visual Right Side */}
-              <div className="flex-1 flex flex-col gap-3 justify-center items-end pr-4 relative">
-                 <div className="w-[80%] h-10 rounded-lg border border-white/10 bg-black/20 flex items-center px-3 justify-between">
-                   <div className="flex items-center gap-2">
-                     <div className="w-4 h-4 border border-white/20 rounded-sm"></div>
-                     <span className="text-[11px] text-white/70">Fed Cuts Rates</span>
-                   </div>
-                   <div className="text-[14px] text-white/30">45%</div>
-                 </div>
-                 
-                 <div className="w-full h-10 rounded-lg border border-white/40 bg-black/40 flex items-center px-3 justify-between relative shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                   <div className="flex items-center gap-2">
-                     <div className="w-4 h-4 border border-white/50 rounded-sm bg-white/20"></div>
-                     <span className="text-[11px] text-white font-medium">BTC Hits $100k</span>
-                   </div>
-                   <div className="w-8 h-5 rounded bg-white text-black flex items-center justify-center text-[10px] shadow-sm shadow-white">89%</div>
-                   {/* Mouse Cursor */}
-                   <div className="absolute -bottom-5 right-0 text-white drop-shadow-lg z-20">
-                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>
-                   </div>
-                 </div>
-                 
-                 <div className="w-[80%] h-10 rounded-lg border border-white/10 bg-black/20 flex items-center px-3 justify-between">
-                   <div className="flex items-center gap-2">
-                     <div className="w-4 h-4 border border-white/20 rounded-sm"></div>
-                     <span className="text-[11px] text-white/70">Stock Token Highs</span>
-                   </div>
-                   <div className="text-[14px] text-white/30">12%</div>
-                 </div>
+
+              {/* Visual Right Side: Vertical Top & Bottom Stack (BUY YES Top, BUY NO Bottom) */}
+              <div className="flex-1 flex flex-col justify-center gap-2.5 relative my-auto px-1 max-w-[240px] mx-auto w-full">
+                {/* BUY YES Pill (Top) */}
+                <div className="bg-black/60 border border-emerald-500/30 rounded-xl p-3 shadow-xl flex items-center justify-between h-12 w-full group-hover:border-emerald-500/50 transition-all">
+                  <span className="px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/40 tracking-wider">
+                    BUY YES
+                  </span>
+                  <span className="text-xs text-emerald-400 font-mono font-bold">67%</span>
+                </div>
+
+                {/* BUY NO Pill (Bottom) */}
+                <div className="bg-black/60 border border-rose-500/30 rounded-xl p-3 shadow-xl flex items-center justify-between h-12 w-full group-hover:border-rose-500/50 transition-all">
+                  <span className="px-2.5 py-0.5 rounded bg-rose-500/20 text-rose-400 text-xs font-bold border border-rose-500/40 tracking-wider">
+                    BUY NO
+                  </span>
+                  <span className="text-xs text-rose-400 font-mono font-bold">33%</span>
+                </div>
+
+                {/* Blur backdrop behind visual */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[180px] h-[80px] bg-white/10 blur-[40px] z-0 pointer-events-none"></div>
               </div>
             </div>
           </GlassSurface>
         </div>
 
-        {/* Bento 3: Real-time Probabilities */}
-        <div className="md:col-span-6 h-full">
+        {/* Bento 2: Entry Price, Size & Probability (COMPACT CARD: col-span-4) */}
+        <div className="md:col-span-4 h-full">
           <GlassSurface
             width="100%"
             height="100%"
             borderRadius={16}
             backgroundOpacity={0.03}
             opacity={0.3}
-            className="w-full h-full relative group"
+            className="w-full h-full relative group hover:border-white/20 transition-all"
           >
-            <div className="p-6 flex flex-col w-full h-full relative z-10">
+            <div className="p-6 flex flex-col justify-between h-full w-full relative z-10">
+              <div className="space-y-2.5 mb-4">
+                <div className="h-9 rounded-lg border border-white/10 bg-black/40 flex items-center px-3 justify-between">
+                  <span className="text-[10px] text-white/50 font-mono">Entry Price</span>
+                  <span className="text-[11px] text-white font-bold font-mono">$0.42 / share</span>
+                </div>
+                
+                <div className="h-9 rounded-lg border border-white/30 bg-black/60 flex items-center px-3 justify-between shadow-[0_0_12px_rgba(255,255,255,0.12)]">
+                  <span className="text-[10px] text-white/50 font-mono">Position Size</span>
+                  <span className="text-[11px] text-white font-bold font-mono">$500.00 USDG</span>
+                </div>
+                
+                <div className="h-9 rounded-lg border border-white/10 bg-black/40 flex items-center px-3 justify-between">
+                  <span className="text-[10px] text-white/50 font-mono">Current Odds</span>
+                  <span className="text-[11px] text-white font-bold font-mono">67% YES</span>
+                </div>
+              </div>
+
+              <div className="mt-auto">
+                <h3 className="text-[15px] font-semibold mb-1 text-white">Entry & Size Transparency</h3>
+                <p className="text-[12px] text-white/40 leading-relaxed">
+                  Inspect exact execution prices and real capital amounts committed to the market.
+                </p>
+              </div>
+            </div>
+          </GlassSurface>
+        </div>
+
+        {/* Bento 3: Live PnL & Settlement (COMPACT CARD: col-span-5) */}
+        <div className="md:col-span-5 h-full">
+          <GlassSurface
+            width="100%"
+            height="100%"
+            borderRadius={16}
+            backgroundOpacity={0.03}
+            opacity={0.3}
+            className="w-full h-full relative group hover:border-white/20 transition-all"
+          >
+            <div className="p-6 flex flex-col w-full h-full relative z-10 justify-between">
               {/* Visual area */}
-              <div className="h-40 mb-6 bg-black/40 rounded-xl border border-white/5 relative overflow-hidden p-4 flex flex-col items-center justify-center">
-                 <div className="text-[10px] text-white/50 mb-3">Watch probabilities move live</div>
-                 <div className="flex gap-2 mb-4 w-full px-6">
-                   <div className="flex-1 py-2 rounded border border-white/10 bg-white/5 text-[10px] text-center text-white/60">30%</div>
-                   <div className="flex-1 py-2 rounded border border-white/40 bg-white/10 text-[10px] text-center text-white font-medium shadow-[0_0_10px_rgba(255,255,255,0.2)]">61%</div>
-                   <div className="flex-1 py-2 rounded border border-white/10 bg-white/5 text-[10px] text-center text-white/60">9%</div>
-                 </div>
-                 <div className="w-full px-6 flex items-center gap-2">
-                    <div className="flex-1 h-8 rounded border border-white/10 bg-white/5 flex items-center px-3 text-[9px] text-white/30">Enter order amount...</div>
-                    <div className="h-8 px-3 bg-white/10 rounded border border-white/5 text-[9px] flex items-center gap-1 text-white/70">
-                      Buy YES 
-                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg>
-                    </div>
-                 </div>
-                 <div className="absolute bottom-0 w-full h-[60px] bg-gradient-to-t from-white/20 to-transparent blur-[20px]"></div>
+              <div className="h-36 mb-4 bg-black/40 rounded-xl border border-white/10 relative overflow-hidden p-4 flex flex-col items-center justify-center">
+                <div className="text-[10px] text-white/50 mb-2 font-mono uppercase tracking-wider">Live Position Tracking</div>
+                
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="text-2xl font-bold font-mono text-emerald-400">
+                    +$340.00 <span className="text-xs text-emerald-400/80 font-normal">(+68%)</span>
+                  </div>
+                </div>
+
+                <div className="w-full px-4 flex items-center justify-between text-[10px] font-mono text-white/40 border-t border-white/5 pt-2">
+                  <span>Resolution: 18h 42m</span>
+                  <span className="text-white/60">Live</span>
+                </div>
+
+                <div className="absolute bottom-0 w-full h-[50px] bg-gradient-to-t from-white/10 to-transparent blur-[15px]"></div>
               </div>
-              <h3 className="text-[15px] font-semibold mb-2">Real-time Probabilities</h3>
-              <p className="text-[12px] text-white/40 leading-relaxed max-w-[280px]">Watch market-implied probabilities move in real time. Buy or sell positions instantly on the central limit order book.</p>
+
+              <div>
+                <h3 className="text-[15px] font-semibold mb-1 text-white">Live PnL & Countdown</h3>
+                <p className="text-[12px] text-white/40 leading-relaxed">
+                  Track unrealized gains with transparent countdown timers to settlement.
+                </p>
+              </div>
             </div>
           </GlassSurface>
         </div>
 
-        {/* Bento 4: Seamless Resolution */}
-        <div className="md:col-span-6 h-full">
+        {/* Bento 4: No Screenshots, No Fake Numbers (WIDE CARD: col-span-7) */}
+        <div className="md:col-span-7 h-full">
           <GlassSurface
             width="100%"
             height="100%"
             borderRadius={16}
             backgroundOpacity={0.03}
             opacity={0.3}
-            className="w-full h-full relative group"
+            className="w-full h-full relative group hover:border-white/20 transition-all"
           >
-            <div className="p-6 flex flex-col justify-end w-full h-full relative z-10">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[150px] bg-white/10 blur-[50px] pointer-events-none z-0"></div>
+            <div className="p-6 flex flex-col justify-between w-full h-full relative z-10">
               
-              <div className="absolute top-8 left-8 right-8 flex flex-col gap-4 z-10">
-                <div className="self-end bg-white text-black font-medium text-[10px] px-3 py-2 rounded-lg rounded-tr-none max-w-[200px] shadow-lg">
-                  Redeem winning shares instantly
-                  <div className="text-[7px] text-black/50 mt-1 uppercase">Step 2</div>
+              {/* Visual Illustration: Fake Screenshot vs Real On-Chain Contract Proof */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 relative">
+                {/* Left: Fake PNG Screenshot (Crossed / Disabled) */}
+                <div className="bg-red-950/20 border border-red-500/30 rounded-xl p-3 flex flex-col justify-between h-28 relative opacity-60">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                      <svg className="w-3 h-3 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Fake Screenshot
+                    </span>
+                    <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-mono">
+                      Unverified
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-white/40 line-through font-mono">
+                    +$50,000 PnL (Edited)
+                  </div>
+                  <div className="text-[9px] text-white/30 font-mono">
+                    No Market Connection
+                  </div>
                 </div>
-                <div className="self-start bg-black/60 border border-white/5 text-white/80 text-[10px] px-3 py-2 rounded-lg rounded-tl-none max-w-[200px] shadow-lg">
-                  <div className="text-[7px] text-white font-bold mb-1 uppercase">Step 1</div>
-                  Oracle verifies the real-world outcome
+
+                {/* Right: Real On-Chain Verified Position (Glowing Emerald) */}
+                <div className="bg-black/60 border border-emerald-500/40 rounded-xl p-3 flex flex-col justify-between h-28 relative shadow-[0_0_20px_rgba(16,185,129,0.15)] group-hover:border-emerald-500/60 transition-all">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                      <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      On-Chain State
+                    </span>
+                    <span className="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-mono font-bold">
+                      Verified
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] font-mono">
+                    <span className="text-emerald-400 font-bold">+$340.00 USDG</span>
+                    <span className="text-white/60">67% YES</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[9px] text-white/50 font-mono border-t border-white/5 pt-1.5">
+                    <span>0x9a6e...f5a</span>
+                    <span className="text-emerald-400 font-bold">1-Click Trade</span>
+                  </div>
                 </div>
               </div>
 
-              <h3 className="text-[15px] font-semibold mb-2 relative z-10 mt-36">Seamless Resolution</h3>
-              <p className="text-[12px] text-white/40 leading-relaxed max-w-[280px] relative z-10">Experience automated market resolution and instant redemptions for winning positions without counterparty risk.</p>
+              <div>
+                <h3 className="text-[15px] font-semibold mb-1 text-white">No Screenshots. No Fake Numbers.</h3>
+                <p className="text-[12px] text-white/40 leading-relaxed max-w-[340px]">
+                  100% on-chain transparency. Trade or counter any callout directly from the feed without leaving the timeline.
+                </p>
+              </div>
             </div>
           </GlassSurface>
         </div>

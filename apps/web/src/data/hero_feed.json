@@ -1,0 +1,140 @@
+{
+  "featuredCallouts": [
+    {
+      "id": "hero-callout-1",
+      "handle": "MacroAldi",
+      "displayName": "MacroAldi",
+      "role": "Macro Analyst",
+      "accuracy": "92%",
+      "timeAgo": "12m ago",
+      "avatarUrl": "https://api.dicebear.com/9.x/avataaars/svg?seed=MacroAldi",
+      "isVerified": true,
+      "thesis": "\"Fed cut odds still look too low. Inflation printing cool next week.\"",
+      "outcome": "YES",
+      "marketTitle": "Will the Fed cut interest rates at next FOMC?",
+      "pnlText": "+$121.90 (+36%)",
+      "entryPrice": "42¢",
+      "currentPrice": "57¢",
+      "positionSize": "$500",
+      "probability": "57%",
+      "yesPrice": "57¢",
+      "noPrice": "43¢",
+      "metrics": {
+        "views": "420",
+        "comments": 14,
+        "reposts": 8,
+        "likes": 47,
+        "copied": 38
+      }
+    },
+    {
+      "id": "hero-callout-2",
+      "handle": "CryptoDesk",
+      "displayName": "CryptoDesk",
+      "role": "Crypto Degen",
+      "accuracy": "88%",
+      "timeAgo": "28m ago",
+      "avatarUrl": "https://api.dicebear.com/9.x/bottts/svg?seed=CryptoDesk",
+      "isVerified": true,
+      "thesis": "\"Market is still underpricing BTC above $150K before EOY. Orderflow looks heavy.\"",
+      "outcome": "YES",
+      "marketTitle": "Will BTC trade above $150,000 in 2026?",
+      "pnlText": "+$84.20 (+42%)",
+      "entryPrice": "31¢",
+      "currentPrice": "44¢",
+      "positionSize": "$200",
+      "probability": "44%",
+      "yesPrice": "44¢",
+      "noPrice": "56¢",
+      "metrics": {
+        "views": "280",
+        "comments": 9,
+        "reposts": 5,
+        "likes": 34,
+        "copied": 25
+      }
+    },
+    {
+      "id": "hero-callout-3",
+      "handle": "ElectionTrader",
+      "displayName": "ElectionTrader",
+      "role": "Macro & Policy",
+      "accuracy": "85%",
+      "timeAgo": "1h ago",
+      "avatarUrl": "https://api.dicebear.com/9.x/thumbs/svg?seed=ElectionTrader",
+      "isVerified": true,
+      "thesis": "\"Taking the other side here. Markets are overreacting to short-term headlines.\"",
+      "outcome": "NO",
+      "marketTitle": "Will US CPI YoY print below 3.0% next month?",
+      "pnlText": "+$46.00 (+15%)",
+      "entryPrice": "63¢",
+      "currentPrice": "58¢",
+      "positionSize": "$300",
+      "probability": "42%",
+      "yesPrice": "42¢",
+      "noPrice": "58¢",
+      "metrics": {
+        "views": "350",
+        "comments": 11,
+        "reposts": 7,
+        "likes": 42,
+        "copied": 28
+      }
+    }
+  ],
+  "fomoSignals": [
+    {
+      "id": "signal-1",
+      "type": "PROBABILITY SPIKE",
+      "market": "FED CUT FOMC",
+      "movement": "42% to 67%",
+      "detail": "+25 pts in 18m",
+      "color": "emerald"
+    },
+    {
+      "id": "signal-2",
+      "type": "VOLUME SURGE",
+      "market": "BTC $150K EOY",
+      "movement": "31% to 46%",
+      "detail": "Vol +280%",
+      "color": "cyan"
+    }
+  ],
+  "topTraders": [
+    {
+      "handle": "AlphaHunter",
+      "accuracy": "68%",
+      "pnl": "+$340.50 PnL",
+      "volume": "$1.8K Vol",
+      "avatarUrl": "https://api.dicebear.com/9.x/thumbs/svg?seed=AlphaHunter"
+    },
+    {
+      "handle": "CryptoWhale",
+      "accuracy": "68%",
+      "pnl": "+$210.00 PnL",
+      "volume": "$1.2K Vol",
+      "avatarUrl": "https://api.dicebear.com/9.x/thumbs/svg?seed=CryptoWhale"
+    },
+    {
+      "handle": "MacroMaster",
+      "accuracy": "75%",
+      "pnl": "+$185.00 PnL",
+      "volume": "$850 Vol",
+      "avatarUrl": "https://api.dicebear.com/9.x/thumbs/svg?seed=MacroMaster"
+    },
+    {
+      "handle": "EthMaxi",
+      "accuracy": "63%",
+      "pnl": "+$124.50 PnL",
+      "volume": "$620 Vol",
+      "avatarUrl": "https://api.dicebear.com/9.x/thumbs/svg?seed=EthMaxi"
+    },
+    {
+      "handle": "TechBear",
+      "accuracy": "77%",
+      "pnl": "+$92.00 PnL",
+      "volume": "$420 Vol",
+      "avatarUrl": "https://api.dicebear.com/9.x/thumbs/svg?seed=TechBear"
+    }
+  ]
+}

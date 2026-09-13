@@ -135,9 +135,9 @@ contract PositionManager is Initializable, OwnableUpgradeable, IPositionManager 
     }
 
     function liquidatePosition(
-        address trader,
-        uint256 perpMarketId
-    ) external onlyAuthorized returns (uint256 penaltyAmount) {
+        address /* trader */,
+        uint256 /* perpMarketId */
+    ) external view onlyAuthorized returns (uint256 penaltyAmount) {
         // Simplified liquidation call
         // In reality, this would calculate penalty, transfer to insurance fund, and clear position
         return 0;

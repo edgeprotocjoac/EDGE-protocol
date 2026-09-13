@@ -11,10 +11,11 @@ export const LandingNavbar = () => {
           <Image unoptimized src="/logo.png?v=2" alt="EDGE Protocol Logo" width={24} height={24} className="rounded-full bg-white ring-1 ring-white/80 shadow-[0_0_15px_rgba(255,255,255,0.3)]" />
           <span className="font-bold text-lg tracking-tight drop-shadow-md">EDGE Protocol</span>
         </Link>
-        <div className="hidden md:flex items-center gap-10 text-[13px] font-medium text-white/70">
+        <div className="hidden md:flex items-center gap-8 text-[13px] font-medium text-white/70">
           <Link href="/markets" className="hover:text-white transition-colors">Markets</Link>
-          <Link href="/#how-it-works" className="hover:text-white transition-colors">How It Works</Link>
-          <Link href="/#faq" className="hover:text-white transition-colors">FAQ</Link>
+          <Link href="/#features" className="hover:text-white transition-colors">Features</Link>
+          <Link href="/#feed" className="hover:text-white transition-colors">Social Feed</Link>
+          <Link href="/#trader-execution" className="hover:text-white transition-colors">Traders</Link>
           <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
         </div>
         <div className="flex items-center gap-4">

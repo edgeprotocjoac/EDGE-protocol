@@ -21,7 +21,7 @@ contract FundingModule is Initializable, OwnableUpgradeable, IFundingModule {
         __Ownable_init(msg.sender);
     }
 
-    function calculateFundingRate(uint256 perpMarketId, uint256 indexPrice, uint256 markPrice) external pure returns (int256) {
+    function calculateFundingRate(uint256 /* perpMarketId */, uint256 indexPrice, uint256 markPrice) external pure returns (int256) {
         // Simple logic: Rate = Mark - Index (scaled appropriately)
         int256 premium = int256(markPrice) - int256(indexPrice);
         // clamp mechanism
