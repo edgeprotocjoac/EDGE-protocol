@@ -45,52 +45,64 @@ export async function getProfileByWallet(
   const supabase = getSupabaseClient();
   const normalizedWallet = walletAddress.toLowerCase();
 
-  const { data, error } = await supabase
+  // Query users table by wallet_address or by ID
+  const { data } = await supabase
     .from('users')
     .select('*')
-    .eq('wallet_address', normalizedWallet)
+    .or(`wallet_address.eq.${normalizedWallet},id.eq.${walletAddress}`)
     .maybeSingle();
 
   if (data) {
+    const handle = data.handle || data.username || `user${normalizedWallet.slice(2, 8)}`;
     return {
-      id: data.id,
-      walletAddress: data.wallet_address,
-      handle: data.handle,
-      displayName: data.display_name,
+      id: data.id || data.wallet_address,
+      walletAddress: data.wallet_address || normalizedWallet,
+      handle,
+      displayName: data.display_name || data.username || handle,
       bio: data.bio || null,
-      avatarUrl: data.avatar_url,
+      avatarUrl: data.avatar_url || `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(handle)}`,
       xHandle: data.x_handle || null,
-      isVerified: Boolean(data.is_verified),
-      createdAt: new Date(data.created_at),
+      isVerified: Boolean(data.is_verified ?? true),
+      createdAt: new Date(data.created_at || Date.now()),
     };
   }
 
-  // Fallback to users table if profiles record doesn't exist yet
+  // Fallback: Check Supabase Auth user by ID if users table record was not created yet
   try {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('*')
-      .eq('wallet_address', normalizedWallet)
-      .limit(1)
-      .maybeSingle();
+    const { data: authUser } = await supabase.auth.admin.getUserById(walletAddress);
+    if (authUser?.user) {
+      const user = authUser.user;
+      const cleanEmail = user.email || '';
+      const userHandle = user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`;
+      const name = user.user_metadata?.displayName || userHandle.replace('@', '');
 
-    if (userData) {
-      const shortId = normalizedWallet.slice(2, 8);
-      const handle = userData.handle || userData.username || `user${shortId}`;
+      // Auto-upsert into users table
+      await supabase.from('users').upsert({
+        id: user.id,
+        email: cleanEmail,
+        handle: userHandle,
+        username: userHandle,
+        display_name: name,
+        wallet_address: normalizedWallet,
+        network: (process.env.NETWORK || 'testnet').toLowerCase(),
+        total_trades: 0,
+        historical_pnl_usdg: 0,
+      }, { onConflict: 'id' });
+
       return {
-        id: userData.wallet_address,
-        walletAddress: userData.wallet_address,
-        handle,
-        displayName: userData.display_name || userData.username || handle,
-        bio: userData.bio || null,
-        avatarUrl: userData.avatar_url || `https://api.dicebear.com/9.x/thumbs/svg?seed=${handle}`,
-        xHandle: userData.x_handle || null,
-        isVerified: false,
-        createdAt: new Date(userData.created_at || Date.now()),
+        id: user.id,
+        walletAddress: normalizedWallet,
+        handle: userHandle,
+        displayName: name,
+        bio: undefined,
+        avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`,
+        xHandle: undefined,
+        isVerified: true,
+        createdAt: new Date(user.created_at),
       };
     }
   } catch (err) {
-    // Ignore users table query failure
+    console.warn('[ProfileService] Supabase Auth user fallback check warning:', err);
   }
 
   return null;

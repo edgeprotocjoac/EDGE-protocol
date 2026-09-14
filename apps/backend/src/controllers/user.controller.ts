@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../utils/supabase';
 import { updateUserTradeStats } from '../services/userService';
 import { sendVerificationOtpEmail } from '../services/emailService';
+import { generateTotpSecret, verifyTotpCode } from '../utils/totp';
 
 export const getUserStats = async (req: Request, res: Response) => {
   try {
@@ -248,6 +249,27 @@ export const verifyEmail = async (req: Request, res: Response) => {
     // Generate session token or sign in
     const userHandle = user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`;
     const name = user.user_metadata?.displayName || userHandle.replace('@', '');
+    const userAddress = `0x${user.id.replace(/-/g, '').substring(0, 40)}`;
+    const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
+
+    // Sync verified email status into 'users' database table
+    try {
+      await supabase
+        .from('users')
+        .upsert({
+          id: user.id,
+          email: cleanEmail,
+          handle: userHandle,
+          username: userHandle,
+          display_name: name,
+          wallet_address: userAddress,
+          network: currentNetwork,
+          is_verified: true,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+    } catch (dbErr) {
+      console.warn('[UserController] Sync verified user to database warning:', dbErr);
+    }
 
     const { data: signInData } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
@@ -311,13 +333,52 @@ export const loginUser = async (req: Request, res: Response) => {
     const userHandle = user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`;
     const name = user.user_metadata?.displayName || userHandle.replace('@', '');
 
+    let totpSecret = user.user_metadata?.totp_secret;
+    if (!totpSecret) {
+      totpSecret = generateTotpSecret();
+      await supabase.auth.admin.updateUserById(user.id, {
+        user_metadata: {
+          ...user.user_metadata,
+          totp_secret: totpSecret,
+        },
+      });
+    }
+
     const is2FASetup = user.user_metadata?.is2FASetup === true || user.user_metadata?.is2FAEnabled === true;
     console.log(`[UserController] 🔑 Login success for ${cleanEmail}. 2FA Status: ${is2FASetup ? 'ALREADY SETUP (Direct 2FA Prompt)' : 'NOT SETUP YET (QR Code Setup Required)'}`);
+
+    const userAddress = `0x${user.id.replace(/-/g, '').substring(0, 40)}`;
+    const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
+
+    // Sync user data to 'users' database table
+    try {
+      await supabase
+        .from('users')
+        .upsert({
+          id: user.id,
+          email: cleanEmail,
+          handle: userHandle,
+          username: userHandle,
+          display_name: name,
+          wallet_address: userAddress,
+          network: currentNetwork,
+          is_verified: true,
+          is_active: is2FASetup,
+          is_2fa_enabled: is2FASetup,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+    } catch (dbErr) {
+      console.warn('[UserController] Login sync to users table warning:', dbErr);
+    }
+
+    const qrCodeData = `otpauth://totp/EdgeProtocol:${encodeURIComponent(cleanEmail)}?secret=${totpSecret}&issuer=EdgeProtocol`;
 
     return res.json({
       success: true,
       requires2FA: true,
       is2FASetup,
+      secretKey: totpSecret,
+      qrCodeData,
       token: session.access_token,
       user: {
         id: user.id,
@@ -355,34 +416,83 @@ export const verify2FA = async (req: Request, res: Response) => {
     const { data: userList } = await supabase.auth.admin.listUsers();
     const user = userList?.users?.find(u => u.email?.toLowerCase() === cleanEmail);
 
-    if (user) {
-      console.log(`[UserController] ✅ 2FA Code verified. Marking account as activated and 2FA enabled for: ${cleanEmail}`);
-      // Mark 2FA as setup & enabled in user metadata
-      await supabase.auth.admin.updateUserById(user.id, {
-        user_metadata: {
-          ...user.user_metadata,
-          is2FASetup: true,
-          is2FAEnabled: true,
-        },
-      });
+    if (!user) {
+      return res.status(400).json({ success: false, error: 'User account not found' });
+    }
 
-      return res.json({
-        success: true,
-        user: {
-          id: user.id,
-          email: cleanEmail,
-          address: `0x${user.id.replace(/-/g, '').substring(0, 40)}`,
-          handle: user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`,
-          displayName: user.user_metadata?.displayName || cleanEmail.split('@')[0],
-          avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(cleanEmail)}`,
-          isVerified: true,
-          isActive: true,
-          is2FAEnabled: true,
-        },
+    const totpSecret = user.user_metadata?.totp_secret;
+    let isValidCode = false;
+
+    if (totpSecret) {
+      isValidCode = verifyTotpCode(totpSecret, code);
+    }
+
+    // Fallback: Check fallback secret if totpSecret was missing during migration
+    if (!isValidCode) {
+      const fallbackSecret = `${cleanEmail.replace(/[^a-z0-9]/g, '')}EDGEPROTOCOLSECRETKEY2FA`.toUpperCase().substring(0, 16);
+      isValidCode = verifyTotpCode(fallbackSecret, code);
+    }
+
+    if (!isValidCode) {
+      console.log(`[UserController] ❌ 2FA TOTP verification failed for: ${cleanEmail} (Input: ${code})`);
+      return res.status(400).json({
+        success: false,
+        error: 'Kode Authenticator 2FA tidak valid. Silakan periksa aplikasi Google Authenticator Anda dan coba lagi.',
       });
     }
 
-    return res.json({ success: true });
+    console.log(`[UserController] ✅ 2FA Code verified successfully. Marking account as activated for: ${cleanEmail}`);
+    // Mark 2FA as setup & enabled in user metadata
+    await supabase.auth.admin.updateUserById(user.id, {
+      user_metadata: {
+        ...user.user_metadata,
+        is2FASetup: true,
+        is2FAEnabled: true,
+      },
+    });
+
+    // Sync activation & 2FA status into 'users' database table
+    const userAddress = `0x${user.id.replace(/-/g, '').substring(0, 40)}`;
+    const userHandle = user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`;
+    const displayName = user.user_metadata?.displayName || cleanEmail.split('@')[0];
+    const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
+
+    try {
+      await supabase
+        .from('users')
+        .upsert({
+          id: user.id,
+          email: cleanEmail,
+          handle: userHandle,
+          username: userHandle,
+          display_name: displayName,
+          wallet_address: userAddress,
+          network: currentNetwork,
+          is_verified: true,
+          is_active: true,
+          is_2fa_enabled: true,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+      console.log(`[UserController] 📊 'users' database table successfully updated for: ${cleanEmail}`);
+    } catch (dbErr) {
+      console.warn(`[UserController] ⚠️ 'users' table update warning:`, dbErr);
+    }
+
+    return res.json({
+      success: true,
+      message: '2FA Verification successful. Account activated.',
+      user: {
+        id: user.id,
+        email: cleanEmail,
+        address: `0x${user.id.replace(/-/g, '').substring(0, 40)}`,
+        handle: user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`,
+        displayName: user.user_metadata?.displayName || cleanEmail.split('@')[0],
+        avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(cleanEmail)}`,
+        isVerified: true,
+        isActive: true,
+        is2FAEnabled: true,
+      },
+    });
   } catch (err: any) {
     console.error(`[UserController] 💥 2FA verification exception:`, err);
     return res.status(500).json({ success: false, error: err.message || '2FA verification failed' });

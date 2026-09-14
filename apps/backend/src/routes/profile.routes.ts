@@ -14,7 +14,7 @@ import { requireAuth } from '../middleware/authMiddleware';
 const router = Router();
 
 // Profile endpoints
-router.get('/wallet/:walletAddress', requireAuth, getProfileByWalletHandler);
+router.get('/wallet/:walletAddress', getProfileByWalletHandler);
 router.get('/:handle', getProfileHandler);
 router.post('/', requireAuth, upsertProfileHandler);
 

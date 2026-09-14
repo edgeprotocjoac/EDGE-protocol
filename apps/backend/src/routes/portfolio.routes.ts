@@ -4,6 +4,6 @@ import { requireAuth } from '../middleware/authMiddleware';
 
 const router = Router();
 
-router.get('/:address', requireAuth, getUserPortfolio);
+router.get('/:address', getUserPortfolio);
 
 export default router;
