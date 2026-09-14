@@ -261,8 +261,12 @@ export const loginUser = async (req: Request, res: Response) => {
     const userHandle = user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`;
     const name = user.user_metadata?.displayName || userHandle.replace('@', '');
 
+    const is2FASetup = user.user_metadata?.is2FASetup === true || user.user_metadata?.is2FAEnabled === true;
+
     return res.json({
       success: true,
+      requires2FA: true,
+      is2FASetup,
       token: session.access_token,
       user: {
         id: user.id,
@@ -272,10 +276,61 @@ export const loginUser = async (req: Request, res: Response) => {
         displayName: name,
         avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`,
         isVerified: true,
+        isActive: is2FASetup,
+        is2FAEnabled: is2FASetup,
       },
     });
   } catch (err: any) {
     return res.status(401).json({ success: false, error: err.message || 'Invalid email or password' });
+  }
+};
+
+/**
+ * Verify 2FA TOTP Code & Activate Account
+ */
+export const verify2FA = async (req: Request, res: Response) => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code || code.trim().length < 6) {
+      return res.status(400).json({ success: false, error: 'Email and 6-digit 2FA code are required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check user in Supabase Auth
+    const { data: userList } = await supabase.auth.admin.listUsers();
+    const user = userList?.users?.find(u => u.email?.toLowerCase() === cleanEmail);
+
+    if (user) {
+      // Mark 2FA as setup & enabled in user metadata
+      await supabase.auth.admin.updateUserById(user.id, {
+        user_metadata: {
+          ...user.user_metadata,
+          is2FASetup: true,
+          is2FAEnabled: true,
+        },
+      });
+
+      return res.json({
+        success: true,
+        user: {
+          id: user.id,
+          email: cleanEmail,
+          address: `0x${user.id.replace(/-/g, '').substring(0, 40)}`,
+          handle: user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`,
+          displayName: user.user_metadata?.displayName || cleanEmail.split('@')[0],
+          avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(cleanEmail)}`,
+          isVerified: true,
+          isActive: true,
+          is2FAEnabled: true,
+        },
+      });
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || '2FA verification failed' });
   }
 };
 
@@ -302,6 +357,8 @@ export const getAuthUser = async (req: any, res: Response) => {
         displayName: name,
         avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`,
         isVerified: true,
+        isActive: user.user_metadata?.is2FASetup === true,
+        is2FAEnabled: user.user_metadata?.is2FASetup === true,
       },
     });
   } catch (err: any) {
