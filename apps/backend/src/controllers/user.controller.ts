@@ -119,14 +119,19 @@ export const signupUser = async (req: Request, res: Response) => {
       userId = created.user.id;
     }
 
-    // Create user record in 'users' table
+    // Create/update user record in 'users' database table
     const address = `0x${userId.replace(/-/g, '').substring(0, 40)}`;
+    const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
     await supabase
       .from('users')
       .upsert({
         id: userId,
+        email: cleanEmail,
+        handle: userHandle,
+        username: userHandle,
+        display_name: name,
         wallet_address: address,
-        network: 'testnet',
+        network: currentNetwork,
         total_trades: 0,
         historical_pnl_usdg: 0,
       }, { onConflict: 'id' });
