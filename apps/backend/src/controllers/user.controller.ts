@@ -42,3 +42,53 @@ export const getUserStats = async (req: Request, res: Response) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+export const loginUser = async (req: Request, res: Response) => {
+  try {
+    const { walletAddress, email, handle, displayName } = req.body;
+    
+    const address = (walletAddress || email || '0x71c893a').toLowerCase();
+    const userHandle = handle || (email ? `@${email.split('@')[0]}` : '@trader');
+    const name = displayName || (userHandle.replace('@', 'Trader '));
+
+    const token = `edge_tok_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // Try to get or create user profile
+    const { data: existing } = await supabase
+      .from('users')
+      .select('*')
+      .eq('wallet_address', address)
+      .maybeSingle();
+
+    let user = existing;
+
+    if (!user) {
+      const { data: created } = await supabase
+        .from('users')
+        .insert({
+          wallet_address: address,
+          network: 'testnet',
+          total_trades: 0,
+          historical_pnl_usdg: 0,
+        })
+        .select()
+        .maybeSingle();
+      user = created;
+    }
+
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: user?.id || address,
+        address,
+        handle: userHandle,
+        displayName: name,
+        avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`,
+        isVerified: true,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
