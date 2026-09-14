@@ -32,10 +32,42 @@ function getTransporter(): Transporter | null {
   return null;
 }
 
+/**
+ * Send email via Resend HTTP REST API (Port 443 HTTPS - Never blocked by firewalls)
+ */
+async function sendViaResendHttpApi(apiKey: string, from: string, to: string, subject: string, html: string): Promise<boolean> {
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject,
+        html,
+      }),
+    });
+
+    const resJson: any = await response.json().catch(() => ({}));
+    if (response.ok && resJson.id) {
+      console.log(`[EmailService] ✅ Resend HTTP API email sent successfully to ${to} (ID: ${resJson.id})`);
+      return true;
+    } else {
+      console.error(`[EmailService] ⚠️ Resend HTTP API returned error:`, resJson);
+    }
+  } catch (err) {
+    console.error(`[EmailService] ⚠️ Resend HTTP API request failed:`, err);
+  }
+  return false;
+}
+
 export async function sendVerificationOtpEmail({ to, otpCode, name }: SendOtpOptions): Promise<boolean> {
   const fromName = process.env.SMTP_FROM_NAME || 'EDGE Protocol';
-  const fromEmail = process.env.SMTP_FROM_EMAIL || 'noreply@edgeprotocol.tech';
-  const from = `"${fromName}" <${fromEmail}>`;
+  const fromEmail = process.env.SMTP_FROM_EMAIL || 'onboarding@resend.dev';
+  const from = `${fromName} <${fromEmail}>`;
 
   const subject = `EDGE Protocol - Your Verification Code: ${otpCode}`;
 
@@ -49,8 +81,11 @@ export async function sendVerificationOtpEmail({ to, otpCode, name }: SendOtpOpt
 <body style="background-color: #0b0e14; margin: 0; padding: 40px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #ffffff;">
   <div style="max-width: 520px; margin: 0 auto; background-color: #121824; border: 1px solid #1e293b; border-radius: 20px; padding: 36px 28px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
     
-    <!-- Branding Header -->
-    <div style="margin-bottom: 24px;">
+    <!-- Branding Header with Logo -->
+    <div style="margin-bottom: 24px; text-align: center;">
+      <div style="display: inline-block; width: 64px; height: 64px; background-color: #ffffff; border-radius: 50%; padding: 6px; box-shadow: 0 4px 16px rgba(34, 197, 94, 0.4); margin-bottom: 14px;">
+        <img src="https://edgeprotocol.tech/logo.png" alt="EDGE Protocol" width="64" height="64" style="width: 100%; height: 100%; object-fit: contain; display: block; border-radius: 50%;" />
+      </div>
       <h1 style="color: #22c55e; font-size: 24px; font-weight: 900; letter-spacing: 2px; margin: 0; padding: 0;">
         EDGE PROTOCOL
       </h1>
@@ -92,24 +127,31 @@ export async function sendVerificationOtpEmail({ to, otpCode, name }: SendOtpOpt
 </html>
   `;
 
-  const activeTransporter = getTransporter();
+  // 1. If using Resend API Key (starts with re_), send via HTTPS REST API (Bypasses port 587 firewall blocks)
+  const apiKey = process.env.RESEND_API_KEY || process.env.SMTP_PASS;
+  if (apiKey && apiKey.startsWith('re_')) {
+    const resendSuccess = await sendViaResendHttpApi(apiKey, from, to, subject, html);
+    if (resendSuccess) return true;
+  }
 
+  // 2. Fallback to Nodemailer SMTP
+  const activeTransporter = getTransporter();
   if (activeTransporter) {
     try {
       await activeTransporter.sendMail({
-        from,
+        from: `"${fromName}" <${fromEmail}>`,
         to,
         subject,
         html,
       });
-      console.log(`[EmailService] ✅ Custom EDGE Protocol verification OTP email sent to ${to}`);
+      console.log(`[EmailService] ✅ Custom EDGE Protocol verification OTP email sent to ${to} via SMTP`);
       return true;
     } catch (err) {
       console.error(`[EmailService] ❌ Failed to send SMTP email:`, err);
     }
   }
 
-  // Fallback logging for local/dev environments without SMTP credentials
+  // Fallback logging for local/dev environments
   console.log(`\n==================================================`);
   console.log(`[EMAIL SERVICE] 📧 EDGE PROTOCOL VERIFICATION EMAIL`);
   console.log(`TO: ${to}`);
