@@ -50,12 +50,15 @@ export const getUserStats = async (req: Request, res: Response) => {
 export const signupUser = async (req: Request, res: Response) => {
   try {
     const { email, password, displayName, handle } = req.body;
+    console.log(`[UserController] 📝 Signup request received for email: ${email}`);
 
     if (!email || !password) {
+      console.log(`[UserController] ❌ Signup failed: Missing email or password`);
       return res.status(400).json({ success: false, error: 'Email and password are required' });
     }
 
     if (password.length < 6) {
+      console.log(`[UserController] ❌ Signup failed: Password too short`);
       return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
     }
 
@@ -67,6 +70,8 @@ export const signupUser = async (req: Request, res: Response) => {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
 
+    console.log(`[UserController] 🔑 Generated OTP Code ${otpCode} for ${cleanEmail}`);
+
     // Check if user already exists in Supabase Admin
     const { data: userList } = await supabase.auth.admin.listUsers();
     const existingUser = userList?.users?.find(u => u.email?.toLowerCase() === cleanEmail);
@@ -74,6 +79,7 @@ export const signupUser = async (req: Request, res: Response) => {
     let userId: string;
 
     if (existingUser) {
+      console.log(`[UserController] 🔄 Existing user found (${existingUser.id}), updating credentials & OTP...`);
       // Update existing user with new password and metadata containing OTP
       const { data: updated, error: updateErr } = await supabase.auth.admin.updateUserById(existingUser.id, {
         password,
@@ -87,10 +93,12 @@ export const signupUser = async (req: Request, res: Response) => {
       });
 
       if (updateErr) {
+        console.error(`[UserController] ❌ Failed to update existing user:`, updateErr.message);
         return res.status(400).json({ success: false, error: updateErr.message });
       }
       userId = updated.user.id;
     } else {
+      console.log(`[UserController] 👤 Creating new user in Supabase Auth...`);
       // Create user via Admin API (email_confirm false initially)
       const { data: created, error: createErr } = await supabase.auth.admin.createUser({
         email: cleanEmail,
@@ -105,6 +113,7 @@ export const signupUser = async (req: Request, res: Response) => {
       });
 
       if (createErr || !created.user) {
+        console.error(`[UserController] ❌ Failed to create user:`, createErr?.message);
         return res.status(400).json({ success: false, error: createErr?.message || 'Failed to create user' });
       }
       userId = created.user.id;
@@ -122,12 +131,15 @@ export const signupUser = async (req: Request, res: Response) => {
         historical_pnl_usdg: 0,
       }, { onConflict: 'id' });
 
+    console.log(`[UserController] ✉️ Dispatching verification email to ${cleanEmail}...`);
     // Send custom EDGE Protocol OTP email (asynchronously in background to ensure fast API response)
     sendVerificationOtpEmail({
       to: cleanEmail,
       otpCode,
       name,
     }).catch(err => console.error('[SignupUser] Email dispatch error:', err));
+
+    console.log(`[UserController] ✅ Signup completed for ${cleanEmail}. Awaiting OTP verification.`);
 
     return res.json({
       success: true,
@@ -136,6 +148,7 @@ export const signupUser = async (req: Request, res: Response) => {
       email: cleanEmail,
     });
   } catch (err: any) {
+    console.error(`[UserController] 💥 Signup exception:`, err);
     return res.status(500).json({ success: false, error: err.message || 'Signup failed' });
   }
 };
@@ -146,6 +159,7 @@ export const signupUser = async (req: Request, res: Response) => {
 export const verifyEmail = async (req: Request, res: Response) => {
   try {
     const { email, code } = req.body;
+    console.log(`[UserController] 🔍 Email verification request for: ${email}`);
 
     if (!email || !code) {
       return res.status(400).json({ success: false, error: 'Email and 6-digit OTP code are required' });
@@ -159,6 +173,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
     const user = userList?.users?.find(u => u.email?.toLowerCase() === cleanEmail);
 
     if (!user) {
+      console.log(`[UserController] ❌ Account not found for verification: ${cleanEmail}`);
       return res.status(400).json({ success: false, error: 'User account not found. Please sign up again.' });
     }
 
@@ -170,6 +185,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
     // Check custom OTP verification
     if (storedOtp && String(storedOtp) === inputCode) {
       if (expiresAt && Date.now() > Number(expiresAt)) {
+        console.log(`[UserController] ⚠️ OTP code expired for: ${cleanEmail}`);
         return res.status(400).json({ success: false, error: 'Verification code has expired. Please request a new code.' });
       }
       isValidOtp = true;
@@ -186,8 +202,11 @@ export const verifyEmail = async (req: Request, res: Response) => {
     }
 
     if (!isValidOtp) {
+      console.log(`[UserController] ❌ Invalid OTP code (${inputCode}) for: ${cleanEmail}`);
       return res.status(400).json({ success: false, error: 'Invalid verification code. Please check your email.' });
     }
+
+    console.log(`[UserController] ✅ OTP code verified successfully for: ${cleanEmail}`);
 
     // Confirm user's email in Supabase
     await supabase.auth.admin.updateUserById(user.id, {
@@ -226,6 +245,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
       },
     });
   } catch (err: any) {
+    console.error(`[UserController] 💥 Email verification exception:`, err);
     return res.status(500).json({ success: false, error: err.message || 'Email verification failed' });
   }
 };
@@ -236,6 +256,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    console.log(`[UserController] 🔐 Login request for email: ${email}`);
 
     if (!email || !password) {
       return res.status(400).json({ success: false, error: 'Email and password are required' });
@@ -250,6 +271,7 @@ export const loginUser = async (req: Request, res: Response) => {
     });
 
     if (error || !data.session || !data.user) {
+      console.log(`[UserController] ❌ Authentication failed for: ${cleanEmail}`);
       return res.status(401).json({
         success: false,
         error: 'Account not found or invalid email/password. Please check your credentials or sign up.',
@@ -262,6 +284,7 @@ export const loginUser = async (req: Request, res: Response) => {
     const name = user.user_metadata?.displayName || userHandle.replace('@', '');
 
     const is2FASetup = user.user_metadata?.is2FASetup === true || user.user_metadata?.is2FAEnabled === true;
+    console.log(`[UserController] 🔑 Login success for ${cleanEmail}. 2FA Status: ${is2FASetup ? 'ALREADY SETUP (Direct 2FA Prompt)' : 'NOT SETUP YET (QR Code Setup Required)'}`);
 
     return res.json({
       success: true,
@@ -281,6 +304,7 @@ export const loginUser = async (req: Request, res: Response) => {
       },
     });
   } catch (err: any) {
+    console.error(`[UserController] 💥 Login exception:`, err);
     return res.status(401).json({ success: false, error: err.message || 'Invalid email or password' });
   }
 };
@@ -291,6 +315,7 @@ export const loginUser = async (req: Request, res: Response) => {
 export const verify2FA = async (req: Request, res: Response) => {
   try {
     const { email, code } = req.body;
+    console.log(`[UserController] 🛡️ 2FA TOTP verification request for: ${email} (Code: ${code})`);
 
     if (!email || !code || code.trim().length < 6) {
       return res.status(400).json({ success: false, error: 'Email and 6-digit 2FA code are required' });
@@ -303,6 +328,7 @@ export const verify2FA = async (req: Request, res: Response) => {
     const user = userList?.users?.find(u => u.email?.toLowerCase() === cleanEmail);
 
     if (user) {
+      console.log(`[UserController] ✅ 2FA Code verified. Marking account as activated and 2FA enabled for: ${cleanEmail}`);
       // Mark 2FA as setup & enabled in user metadata
       await supabase.auth.admin.updateUserById(user.id, {
         user_metadata: {
@@ -330,6 +356,7 @@ export const verify2FA = async (req: Request, res: Response) => {
 
     return res.json({ success: true });
   } catch (err: any) {
+    console.error(`[UserController] 💥 2FA verification exception:`, err);
     return res.status(500).json({ success: false, error: err.message || '2FA verification failed' });
   }
 };
