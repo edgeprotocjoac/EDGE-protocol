@@ -76,10 +76,33 @@ export const signupUser = async (req: Request, res: Response) => {
     const { data: userList } = await supabase.auth.admin.listUsers();
     const existingUser = userList?.users?.find(u => u.email?.toLowerCase() === cleanEmail);
 
+    if (existingUser && (existingUser.email_confirmed_at || existingUser.confirmed_at)) {
+      console.log(`[UserController] ⚠️ Signup blocked: Email ${cleanEmail} is already registered.`);
+      return res.status(400).json({
+        success: false,
+        error: 'Email address is already registered. Please sign in instead or use a different email.',
+      });
+    }
+
+    // Check if handle is already taken by a different user
+    const { data: handleCheck } = await supabase
+      .from('users')
+      .select('id, email')
+      .ilike('handle', userHandle)
+      .maybeSingle();
+
+    if (handleCheck && handleCheck.email?.toLowerCase() !== cleanEmail) {
+      console.log(`[UserController] ⚠️ Signup blocked: Handle ${userHandle} is already taken.`);
+      return res.status(400).json({
+        success: false,
+        error: `Handle ${userHandle} is already taken. Please choose a different handle.`,
+      });
+    }
+
     let userId: string;
 
     if (existingUser) {
-      console.log(`[UserController] 🔄 Existing user found (${existingUser.id}), updating credentials & OTP...`);
+      console.log(`[UserController] 🔄 Unconfirmed user found (${existingUser.id}), updating credentials & re-sending OTP...`);
       // Update existing user with new password and metadata containing OTP
       const { data: updated, error: updateErr } = await supabase.auth.admin.updateUserById(existingUser.id, {
         password,
