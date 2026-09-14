@@ -122,12 +122,12 @@ export const signupUser = async (req: Request, res: Response) => {
         historical_pnl_usdg: 0,
       }, { onConflict: 'id' });
 
-    // Send custom EDGE Protocol OTP email
-    await sendVerificationOtpEmail({
+    // Send custom EDGE Protocol OTP email (asynchronously in background to ensure fast API response)
+    sendVerificationOtpEmail({
       to: cleanEmail,
       otpCode,
       name,
-    });
+    }).catch(err => console.error('[SignupUser] Email dispatch error:', err));
 
     return res.json({
       success: true,
