@@ -85,9 +85,14 @@ export async function getProfileByWallet(
         display_name: name,
         wallet_address: normalizedWallet,
         network: (process.env.NETWORK || 'testnet').toLowerCase(),
+        is_verified: true,
+        is_active: user.user_metadata?.is2FASetup === true,
+        is_2fa_enabled: user.user_metadata?.is2FASetup === true,
         total_trades: 0,
         historical_pnl_usdg: 0,
-      }, { onConflict: 'id' });
+        last_active: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'wallet_address, network' });
 
       return {
         id: user.id,

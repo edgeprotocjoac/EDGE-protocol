@@ -156,9 +156,14 @@ export const signupUser = async (req: Request, res: Response) => {
         display_name: name,
         wallet_address: address,
         network: currentNetwork,
+        is_verified: false,
+        is_active: false,
+        is_2fa_enabled: false,
         total_trades: 0,
         historical_pnl_usdg: 0,
-      }, { onConflict: 'id' });
+        last_active: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'wallet_address,network' });
 
     console.log(`[UserController] ✉️ Dispatching verification email to ${cleanEmail}...`);
     // Send custom EDGE Protocol OTP email (asynchronously in background to ensure fast API response)
@@ -265,8 +270,9 @@ export const verifyEmail = async (req: Request, res: Response) => {
           wallet_address: userAddress,
           network: currentNetwork,
           is_verified: true,
+          last_active: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' });
+        }, { onConflict: 'wallet_address,network' });
     } catch (dbErr) {
       console.warn('[UserController] Sync verified user to database warning:', dbErr);
     }
@@ -365,8 +371,9 @@ export const loginUser = async (req: Request, res: Response) => {
           is_verified: true,
           is_active: is2FASetup,
           is_2fa_enabled: is2FASetup,
+          last_active: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' });
+        }, { onConflict: 'wallet_address,network' });
     } catch (dbErr) {
       console.warn('[UserController] Login sync to users table warning:', dbErr);
     }
@@ -471,8 +478,9 @@ export const verify2FA = async (req: Request, res: Response) => {
           is_verified: true,
           is_active: true,
           is_2fa_enabled: true,
+          last_active: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' });
+        }, { onConflict: 'wallet_address,network' });
       console.log(`[UserController] 📊 'users' database table successfully updated for: ${cleanEmail}`);
     } catch (dbErr) {
       console.warn(`[UserController] ⚠️ 'users' table update warning:`, dbErr);
