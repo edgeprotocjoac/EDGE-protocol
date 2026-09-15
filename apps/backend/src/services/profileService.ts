@@ -65,10 +65,13 @@ export async function getProfileByWallet(
   if (data) {
     const handle = data.handle || data.username || `@${(data.email || 'user').split('@')[0]}`;
     const avatarUrl = data.avatar_url || `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(handle)}`;
+    const realWallet = data.wallet_address && data.wallet_address.length === 42 && !data.wallet_address.startsWith('UNSET')
+      ? data.wallet_address
+      : (normalizedWallet.length === 42 ? normalizedWallet : '');
 
     return {
       id: data.id || data.wallet_address,
-      walletAddress: data.wallet_address || normalizedWallet,
+      walletAddress: realWallet,
       handle,
       displayName: data.display_name || data.username || handle.replace('@', ''),
       bio: data.bio || null,

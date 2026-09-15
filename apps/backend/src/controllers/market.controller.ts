@@ -21,7 +21,7 @@ export const getMarkets = async (req: Request, res: Response) => {
     }
 
     // Category filter
-    if (category) {
+    if (category && String(category).toLowerCase() !== 'all') {
       query = query.ilike('category', String(category));
     }
 
@@ -55,6 +55,7 @@ export const getMarkets = async (req: Request, res: Response) => {
         id: market.id,
         title: market.title || 'Untitled Market',
         slug: market.slug || market.id,
+        category: market.category || 'General',
         image: market.image_url || '',
         status: market.status === 'OPEN' ? 'Live' : (market.status || 'Live'),
         totalVolume: Number(market.total_volume_usdg || 0),
@@ -62,7 +63,8 @@ export const getMarkets = async (req: Request, res: Response) => {
         yesProbability: Math.round(yesProb),
         noProbability: Math.round(noProb),
         yesPrice: Math.round(yesProb),
-        noPrice: Math.round(noProb)
+        noPrice: Math.round(noProb),
+        endTime: market.end_time || '24h',
       };
     });
 
