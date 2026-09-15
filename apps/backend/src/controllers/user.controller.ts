@@ -5,6 +5,54 @@ import { sendVerificationOtpEmail } from '../services/emailService';
 import { generateTotpSecret, verifyTotpCode } from '../utils/totp';
 import { generateEvmWallet, encryptPrivateKey, decryptPrivateKey } from '../utils/wallet';
 
+/**
+ * Helper to dynamically extract network parameter from query/body with default 'TESTNET'
+ */
+const getNetworkFromReq = (req: Request): string => {
+  const param = Array.isArray(req.query?.network)
+    ? req.query.network[0]
+    : req.query?.network || req.body?.network;
+  return String(param || process.env.NETWORK || 'TESTNET').toUpperCase();
+};
+
+/**
+ * Helper to reliably upsert user record to public.users table with conflict handling
+ */
+const upsertUserRow = async (row: Record<string, any>) => {
+  if (row.id) {
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id, wallet_address')
+      .eq('id', row.id)
+      .maybeSingle();
+
+    if (existing) {
+      const { error: updateErr } = await supabase
+        .from('users')
+        .update(row)
+        .eq('id', row.id);
+      if (!updateErr) {
+        console.log(`[UserController] 📊 'public.users' record updated by id: ${row.id}`);
+        return null;
+      }
+      console.warn(`[UserController] Update by id failed: ${updateErr.message}, falling back to upsert...`);
+    }
+  }
+
+  let { error } = await supabase.from('users').upsert(row, { onConflict: 'id' });
+  if (error) {
+    console.warn(`[UserController] Upsert onConflict(id) notice: ${error.message}. Retrying onConflict(wallet_address,network)...`);
+    const res2 = await supabase.from('users').upsert(row, { onConflict: 'wallet_address,network' });
+    error = res2.error;
+  }
+  if (error) {
+    console.error(`[UserController] ❌ Failed to upsert public.users record:`, error.message);
+  } else {
+    console.log(`[UserController] 📊 'public.users' record synced for: ${row.email || row.wallet_address}`);
+  }
+  return error;
+};
+
 export const getUserStats = async (req: Request, res: Response) => {
   try {
     const rawAddress = String(req.params.address || '');
@@ -12,8 +60,7 @@ export const getUserStats = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing wallet address parameter' });
     }
     const normalized = rawAddress.toLowerCase();
-    const networkParam = Array.isArray(req.query.network) ? req.query.network[0] : req.query.network;
-    const network = String(networkParam || process.env.NETWORK || 'testnet').toLowerCase();
+    const network = getNetworkFromReq(req);
 
     // Trigger sync/update for user trade stats
     await updateUserTradeStats(normalized, network);
@@ -147,24 +194,23 @@ export const signupUser = async (req: Request, res: Response) => {
     // Create/update user record in 'users' database table
     const address = `0x${userId.replace(/-/g, '').substring(0, 40)}`;
     const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
-    await supabase
-      .from('users')
-      .upsert({
-        id: userId,
-        email: cleanEmail,
-        handle: userHandle,
-        username: userHandle,
-        display_name: name,
-        wallet_address: address,
-        network: currentNetwork,
-        is_verified: false,
-        is_active: false,
-        is_2fa_enabled: false,
-        total_trades: 0,
-        historical_pnl_usdg: 0,
-        last_active: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'wallet_address,network' });
+
+    await upsertUserRow({
+      id: userId,
+      email: cleanEmail,
+      handle: userHandle,
+      username: userHandle,
+      display_name: name,
+      wallet_address: address,
+      network: currentNetwork,
+      is_verified: false,
+      is_active: false,
+      is_2fa_enabled: false,
+      total_trades: 0,
+      historical_pnl_usdg: 0,
+      last_active: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
 
     console.log(`[UserController] ✉️ Dispatching verification email to ${cleanEmail}...`);
     // Send custom EDGE Protocol OTP email (asynchronously in background to ensure fast API response)
@@ -259,24 +305,18 @@ export const verifyEmail = async (req: Request, res: Response) => {
     const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
 
     // Sync verified email status into 'users' database table
-    try {
-      await supabase
-        .from('users')
-        .upsert({
-          id: user.id,
-          email: cleanEmail,
-          handle: userHandle,
-          username: userHandle,
-          display_name: name,
-          wallet_address: userAddress,
-          network: currentNetwork,
-          is_verified: true,
-          last_active: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'wallet_address,network' });
-    } catch (dbErr) {
-      console.warn('[UserController] Sync verified user to database warning:', dbErr);
-    }
+    await upsertUserRow({
+      id: user.id,
+      email: cleanEmail,
+      handle: userHandle,
+      username: userHandle,
+      display_name: name,
+      wallet_address: userAddress,
+      network: currentNetwork,
+      is_verified: true,
+      last_active: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
 
     return res.json({
       success: true,
@@ -350,26 +390,21 @@ export const loginUser = async (req: Request, res: Response) => {
     const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
 
     // Sync user data to 'users' database table
-    try {
-      await supabase
-        .from('users')
-        .upsert({
-          id: user.id,
-          email: cleanEmail,
-          handle: userHandle,
-          username: userHandle,
-          display_name: name,
-          wallet_address: userAddress,
-          network: currentNetwork,
-          is_verified: true,
-          is_active: is2FASetup,
-          is_2fa_enabled: is2FASetup,
-          last_active: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'wallet_address,network' });
-    } catch (dbErr) {
-      console.warn('[UserController] Login sync to users table warning:', dbErr);
-    }
+    await upsertUserRow({
+      id: user.id,
+      email: cleanEmail,
+      handle: userHandle,
+      username: userHandle,
+      display_name: name,
+      wallet_address: userAddress,
+      network: currentNetwork,
+      is_verified: true,
+      is_active: is2FASetup,
+      is_2fa_enabled: is2FASetup,
+      totp_secret: totpSecret,
+      last_active: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
 
     const qrCodeData = `otpauth://totp/EdgeProtocol:${encodeURIComponent(cleanEmail)}?secret=${totpSecret}&issuer=EdgeProtocol`;
 
@@ -431,7 +466,7 @@ export const verify2FA = async (req: Request, res: Response) => {
       console.log(`[UserController] ❌ 2FA TOTP verification failed for: ${cleanEmail} (Input: ${code})`);
       return res.status(400).json({
         success: false,
-        error: 'Kode Authenticator 2FA tidak valid. Silakan periksa aplikasi Google Authenticator Anda dan coba lagi.',
+        error: 'Invalid 2FA Authenticator code. Please check your Google Authenticator app and try again.',
       });
     }
 
@@ -451,27 +486,20 @@ export const verify2FA = async (req: Request, res: Response) => {
     const displayName = user.user_metadata?.displayName || cleanEmail.split('@')[0];
     const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
 
-    try {
-      await supabase
-        .from('users')
-        .upsert({
-          id: user.id,
-          email: cleanEmail,
-          handle: userHandle,
-          username: userHandle,
-          display_name: displayName,
-          wallet_address: userAddress,
-          network: currentNetwork,
-          is_verified: true,
-          is_active: true,
-          is_2fa_enabled: true,
-          last_active: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'wallet_address,network' });
-      console.log(`[UserController] 📊 'users' database table successfully updated for: ${cleanEmail}`);
-    } catch (dbErr) {
-      console.warn(`[UserController] ⚠️ 'users' table update warning:`, dbErr);
-    }
+    await upsertUserRow({
+      id: user.id,
+      email: cleanEmail,
+      handle: userHandle,
+      username: userHandle,
+      display_name: displayName,
+      wallet_address: userAddress,
+      network: currentNetwork,
+      is_verified: true,
+      is_active: true,
+      is_2fa_enabled: true,
+      last_active: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
 
     const authHeader = req.headers.authorization;
     const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
@@ -565,16 +593,21 @@ export const generateWallet = async (req: Request, res: Response) => {
     }
 
     const email = user.email || `${user.user_metadata?.handle || user.id}@edgeprotocol.tech`;
-    console.log(`[UserController] 🔑 Wallet generation requested for: ${email} (${user.id})`);
+    const currentNetwork = getNetworkFromReq(req);
+    console.log(`[UserController] 🔑 Wallet generation requested for: ${email} (${user.id}) on network: ${currentNetwork}`);
 
     // Check if user already has an encrypted wallet in database
     const { data: existingUser } = await supabase
       .from('users')
-      .select('wallet_address, encrypted_private_key')
+      .select('wallet_address, encrypted_private_key, network')
       .eq('id', user.id)
       .maybeSingle();
 
-    if (existingUser && existingUser.encrypted_private_key) {
+    const isPlaceholder = !existingUser?.wallet_address || 
+      existingUser.wallet_address.length !== 42 || 
+      existingUser.wallet_address.toLowerCase().startsWith(`0x${user.id.replace(/-/g, '').substring(0, 30)}`.toLowerCase());
+
+    if (existingUser && existingUser.encrypted_private_key && !isPlaceholder) {
       let decryptedKey = '';
       try {
         decryptedKey = decryptPrivateKey(existingUser.encrypted_private_key);
@@ -587,6 +620,7 @@ export const generateWallet = async (req: Request, res: Response) => {
         hasWallet: true,
         address: existingUser.wallet_address,
         privateKey: decryptedKey || undefined,
+        network: existingUser.network || currentNetwork,
         usdgBalance: 1000,
         message: 'Wallet already generated.',
       });
@@ -595,34 +629,32 @@ export const generateWallet = async (req: Request, res: Response) => {
     // Generate new EVM Wallet
     const { address, privateKey } = generateEvmWallet();
     const encryptedKey = encryptPrivateKey(privateKey);
-    const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
 
     // Update 'users' database table
-    await supabase
-      .from('users')
-      .upsert({
-        id: user.id,
-        email,
-        handle: user.user_metadata?.handle || `@${email.split('@')[0]}`,
-        username: user.user_metadata?.handle || `@${email.split('@')[0]}`,
-        display_name: user.user_metadata?.displayName || email.split('@')[0],
-        wallet_address: address,
-        network: currentNetwork,
-        encrypted_private_key: encryptedKey,
-        is_verified: true,
-        is_active: true,
-        is_2fa_enabled: true,
-        last_active: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'wallet_address,network' });
+    await upsertUserRow({
+      id: user.id,
+      email,
+      handle: user.user_metadata?.handle || `@${email.split('@')[0]}`,
+      username: user.user_metadata?.handle || `@${email.split('@')[0]}`,
+      display_name: user.user_metadata?.displayName || email.split('@')[0],
+      wallet_address: address,
+      network: currentNetwork,
+      encrypted_private_key: encryptedKey,
+      is_verified: true,
+      is_active: true,
+      is_2fa_enabled: true,
+      last_active: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
 
-    console.log(`[UserController] ✅ EVM Wallet successfully generated for ${email}: ${address}`);
+    console.log(`[UserController] ✅ EVM Wallet successfully generated for ${email}: ${address} (${currentNetwork})`);
 
     return res.json({
       success: true,
       hasWallet: true,
       address,
       privateKey,
+      network: currentNetwork,
       usdgBalance: 1000,
       message: 'Wallet generated successfully!',
     });
@@ -641,6 +673,7 @@ export const getWalletDetails = async (req: Request, res: Response) => {
     if (!user) {
       return res.status(400).json({ success: false, error: 'User not found' });
     }
+    const currentNetwork = getNetworkFromReq(req);
 
     const { data: dbUser } = await supabase
       .from('users')
@@ -648,10 +681,15 @@ export const getWalletDetails = async (req: Request, res: Response) => {
       .eq('id', user.id)
       .maybeSingle();
 
-    if (!dbUser || !dbUser.encrypted_private_key) {
+    const isPlaceholder = !dbUser?.wallet_address || 
+      dbUser.wallet_address.length !== 42 || 
+      dbUser.wallet_address.toLowerCase().startsWith(`0x${user.id.replace(/-/g, '').substring(0, 30)}`.toLowerCase());
+
+    if (!dbUser || !dbUser.encrypted_private_key || isPlaceholder) {
       return res.json({
         success: true,
         hasWallet: false,
+        network: currentNetwork,
       });
     }
 
@@ -659,7 +697,7 @@ export const getWalletDetails = async (req: Request, res: Response) => {
       success: true,
       hasWallet: true,
       address: dbUser.wallet_address,
-      network: dbUser.network || 'testnet',
+      network: dbUser.network || currentNetwork,
       usdgBalance: 1000,
     });
   } catch (err: any) {
@@ -695,7 +733,7 @@ export const exportPrivateKey = async (req: Request, res: Response) => {
       console.log(`[UserController] ❌ 2FA verification failed during Private Key export for: ${user.email || user.id}`);
       return res.status(400).json({
         success: false,
-        error: 'Kode Authenticator 2FA tidak valid. Silakan periksa aplikasi Google Authenticator Anda.',
+        error: 'Invalid 2FA Authenticator code. Please check your Google Authenticator app and try again.',
       });
     }
 
