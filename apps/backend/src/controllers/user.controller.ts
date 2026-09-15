@@ -626,6 +626,7 @@ export const generateWallet = async (req: Request, res: Response) => {
 
     const email = user.email || `${user.user_metadata?.handle || user.id}@edgeprotocol.tech`;
     const currentNetwork = getNetworkFromReq(req);
+    const { code, forceRegenerate } = req.body || {};
     console.log(`[UserController] 🔑 Wallet generation requested for: ${email} (${user.id}) on network: ${currentNetwork}`);
 
     // Check if user already has an encrypted wallet in database
@@ -639,7 +640,10 @@ export const generateWallet = async (req: Request, res: Response) => {
       existingUser.wallet_address.length !== 42 || 
       existingUser.wallet_address.startsWith('UNSET');
 
-    if (existingUser && existingUser.encrypted_private_key && !isPlaceholder) {
+    const hasExistingWallet = existingUser && existingUser.encrypted_private_key && !isPlaceholder;
+
+    // If wallet already exists and caller didn't request forceRegenerate and didn't pass 2FA code:
+    if (hasExistingWallet && !forceRegenerate && !code) {
       let decryptedKey = '';
       try {
         decryptedKey = decryptPrivateKey(existingUser.encrypted_private_key);
@@ -656,6 +660,31 @@ export const generateWallet = async (req: Request, res: Response) => {
         usdgBalance: 0,
         message: 'Wallet already generated.',
       });
+    }
+
+    // Require 2FA code verification if re-generating an existing wallet OR if 2FA code is provided
+    if (hasExistingWallet || forceRegenerate || code) {
+      if (!code || String(code).trim().length < 6) {
+        return res.status(400).json({
+          success: false,
+          error: '6-digit 2FA code is required to generate/re-generate your wallet.',
+        });
+      }
+
+      const totpSecret = user.user_metadata?.totp_secret;
+      let isValidCode = false;
+
+      if (totpSecret) {
+        isValidCode = verifyTotpCode(totpSecret, String(code).trim());
+      }
+
+      if (!isValidCode) {
+        console.log(`[UserController] ❌ 2FA verification failed during wallet generation for: ${email}`);
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid 2FA Authenticator code. Please check your Google Authenticator app and try again.',
+        });
+      }
     }
 
     // Generate new EVM Wallet
