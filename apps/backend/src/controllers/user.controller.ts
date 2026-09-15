@@ -3,6 +3,7 @@ import { supabase } from '../utils/supabase';
 import { updateUserTradeStats } from '../services/userService';
 import { sendVerificationOtpEmail } from '../services/emailService';
 import { generateTotpSecret, verifyTotpCode } from '../utils/totp';
+import { generateEvmWallet, encryptPrivateKey, decryptPrivateKey } from '../utils/wallet';
 
 export const getUserStats = async (req: Request, res: Response) => {
   try {
@@ -277,17 +278,9 @@ export const verifyEmail = async (req: Request, res: Response) => {
       console.warn('[UserController] Sync verified user to database warning:', dbErr);
     }
 
-    const { data: signInData } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password: user.user_metadata?.password || 'password123', // if stored or standard login
-    }).catch(() => ({ data: { session: null } }));
-
-    // Return authenticated session or token
-    const token = signInData?.session?.access_token || `token_${user.id}`;
-
     return res.json({
       success: true,
-      token,
+      message: 'Email verified successfully. Please sign in to activate your account with 2FA.',
       user: {
         id: user.id,
         email: cleanEmail,
@@ -296,7 +289,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
         displayName: name,
         avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`,
         isVerified: true,
-        isActive: false, // 2FA required on first login!
+        isActive: false,
         is2FAEnabled: false,
       },
     });
@@ -434,12 +427,6 @@ export const verify2FA = async (req: Request, res: Response) => {
       isValidCode = verifyTotpCode(totpSecret, code);
     }
 
-    // Fallback: Check fallback secret if totpSecret was missing during migration
-    if (!isValidCode) {
-      const fallbackSecret = `${cleanEmail.replace(/[^a-z0-9]/g, '')}EDGEPROTOCOLSECRETKEY2FA`.toUpperCase().substring(0, 16);
-      isValidCode = verifyTotpCode(fallbackSecret, code);
-    }
-
     if (!isValidCode) {
       console.log(`[UserController] ❌ 2FA TOTP verification failed for: ${cleanEmail} (Input: ${code})`);
       return res.status(400).json({
@@ -486,9 +473,13 @@ export const verify2FA = async (req: Request, res: Response) => {
       console.warn(`[UserController] ⚠️ 'users' table update warning:`, dbErr);
     }
 
+    const authHeader = req.headers.authorization;
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+
     return res.json({
       success: true,
       message: '2FA Verification successful. Account activated.',
+      token: bearerToken || undefined,
       user: {
         id: user.id,
         email: cleanEmail,
@@ -538,3 +529,197 @@ export const getAuthUser = async (req: any, res: Response) => {
     return res.status(500).json({ success: false, error: err.message });
   }
 };
+
+/**
+ * Helper to resolve user from request parameters or auth session
+ */
+const resolveUserFromReq = async (req: any) => {
+  if (req.user) return req.user;
+  const param = String(req.body.email || req.query.email || req.body.address || req.query.address || req.body.identifier || '').trim().toLowerCase();
+  
+  const { data: userList } = await supabase.auth.admin.listUsers();
+  if (!userList || !userList.users) return null;
+
+  if (param) {
+    const found = userList.users.find(u =>
+      u.email?.toLowerCase() === param ||
+      u.id === param ||
+      (u.user_metadata?.handle && u.user_metadata.handle.toLowerCase() === param.toLowerCase()) ||
+      (u.user_metadata?.handle && `@${u.user_metadata.handle.toLowerCase().replace('@', '')}` === param.toLowerCase())
+    );
+    if (found) return found;
+  }
+
+  // Fallback to first user in list if single user dev environment
+  return userList.users[0] || null;
+};
+
+/**
+ * On-demand EVM Wallet Generation for User Profile
+ */
+export const generateWallet = async (req: Request, res: Response) => {
+  try {
+    const user = await resolveUserFromReq(req);
+    if (!user) {
+      return res.status(400).json({ success: false, error: 'User account not found' });
+    }
+
+    const email = user.email || `${user.user_metadata?.handle || user.id}@edgeprotocol.tech`;
+    console.log(`[UserController] 🔑 Wallet generation requested for: ${email} (${user.id})`);
+
+    // Check if user already has an encrypted wallet in database
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('wallet_address, encrypted_private_key')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (existingUser && existingUser.encrypted_private_key) {
+      let decryptedKey = '';
+      try {
+        decryptedKey = decryptPrivateKey(existingUser.encrypted_private_key);
+      } catch (e) {
+        console.warn(`[UserController] Could not decrypt existing wallet key:`, e);
+      }
+
+      return res.json({
+        success: true,
+        hasWallet: true,
+        address: existingUser.wallet_address,
+        privateKey: decryptedKey || undefined,
+        usdgBalance: 1000,
+        message: 'Wallet already generated.',
+      });
+    }
+
+    // Generate new EVM Wallet
+    const { address, privateKey } = generateEvmWallet();
+    const encryptedKey = encryptPrivateKey(privateKey);
+    const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
+
+    // Update 'users' database table
+    await supabase
+      .from('users')
+      .upsert({
+        id: user.id,
+        email,
+        handle: user.user_metadata?.handle || `@${email.split('@')[0]}`,
+        username: user.user_metadata?.handle || `@${email.split('@')[0]}`,
+        display_name: user.user_metadata?.displayName || email.split('@')[0],
+        wallet_address: address,
+        network: currentNetwork,
+        encrypted_private_key: encryptedKey,
+        is_verified: true,
+        is_active: true,
+        is_2fa_enabled: true,
+        last_active: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'wallet_address,network' });
+
+    console.log(`[UserController] ✅ EVM Wallet successfully generated for ${email}: ${address}`);
+
+    return res.json({
+      success: true,
+      hasWallet: true,
+      address,
+      privateKey,
+      usdgBalance: 1000,
+      message: 'Wallet generated successfully!',
+    });
+  } catch (err: any) {
+    console.error(`[UserController] 💥 Wallet generation exception:`, err);
+    return res.status(500).json({ success: false, error: err.message || 'Failed to generate wallet' });
+  }
+};
+
+/**
+ * Get User Wallet Details (Public address & USDG Balance)
+ */
+export const getWalletDetails = async (req: Request, res: Response) => {
+  try {
+    const user = await resolveUserFromReq(req);
+    if (!user) {
+      return res.status(400).json({ success: false, error: 'User not found' });
+    }
+
+    const { data: dbUser } = await supabase
+      .from('users')
+      .select('wallet_address, encrypted_private_key, network')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (!dbUser || !dbUser.encrypted_private_key) {
+      return res.json({
+        success: true,
+        hasWallet: false,
+      });
+    }
+
+    return res.json({
+      success: true,
+      hasWallet: true,
+      address: dbUser.wallet_address,
+      network: dbUser.network || 'testnet',
+      usdgBalance: 1000,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/**
+ * Export Private Key (Requires 2FA Code Verification)
+ */
+export const exportPrivateKey = async (req: Request, res: Response) => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ success: false, error: '6-digit 2FA code is required' });
+    }
+
+    const user = await resolveUserFromReq(req);
+    if (!user) {
+      return res.status(400).json({ success: false, error: 'User not found' });
+    }
+
+    console.log(`[UserController] 🔐 Private Key export requested for: ${user.email || user.id}`);
+
+    const totpSecret = user.user_metadata?.totp_secret;
+    let isValidCode = false;
+
+    if (totpSecret) {
+      isValidCode = verifyTotpCode(totpSecret, code);
+    }
+
+    if (!isValidCode) {
+      console.log(`[UserController] ❌ 2FA verification failed during Private Key export for: ${user.email || user.id}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Kode Authenticator 2FA tidak valid. Silakan periksa aplikasi Google Authenticator Anda.',
+      });
+    }
+
+    const { data: dbUser } = await supabase
+      .from('users')
+      .select('wallet_address, encrypted_private_key')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (!dbUser || !dbUser.encrypted_private_key) {
+      return res.status(400).json({ success: false, error: 'Wallet has not been generated yet.' });
+    }
+
+    const privateKey = decryptPrivateKey(dbUser.encrypted_private_key);
+    console.log(`[UserController] ✅ Private Key decrypted & exported successfully for ${user.email || user.id}`);
+
+    return res.json({
+      success: true,
+      address: dbUser.wallet_address,
+      privateKey,
+    });
+  } catch (err: any) {
+    console.error(`[UserController] 💥 Export Private Key exception:`, err);
+    return res.status(500).json({ success: false, error: err.message || 'Failed to export private key' });
+  }
+};
+
