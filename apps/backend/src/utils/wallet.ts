@@ -1,17 +1,16 @@
+import { Wallet } from 'ethers';
 import crypto from 'crypto';
 
 /**
  * Generate a new random EVM-compatible wallet (Address & Private Key)
+ * Uses standard secp256k1 + Keccak-256 keypair derivation via ethers.js
  */
 export function generateEvmWallet(): { address: string; privateKey: string } {
-  const privateKeyBytes = crypto.randomBytes(32);
-  const privateKey = '0x' + privateKeyBytes.toString('hex');
-
-  // Derive EVM address (0x + 40 hex chars)
-  const addressHash = crypto.createHash('sha256').update(privateKeyBytes).digest();
-  const address = '0x' + addressHash.subarray(0, 20).toString('hex');
-
-  return { address, privateKey };
+  const wallet = Wallet.createRandom();
+  return {
+    address: wallet.address,
+    privateKey: wallet.privateKey,
+  };
 }
 
 const MASTER_KEY = process.env.WALLET_ENCRYPTION_SECRET || 'EDGE_PROTOCOL_MASTER_WALLET_KEY_32B_AES256';

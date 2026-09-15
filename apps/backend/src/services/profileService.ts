@@ -45,22 +45,24 @@ export async function getProfileByWallet(
   const supabase = getSupabaseClient();
   const normalizedWallet = walletAddress.toLowerCase();
 
-  // Query users table by wallet_address or by ID
+  // Query users table by wallet_address, ID, or email
   const { data } = await supabase
     .from('users')
     .select('*')
-    .or(`wallet_address.eq.${normalizedWallet},id.eq.${walletAddress}`)
+    .or(`wallet_address.ilike.${normalizedWallet},id.eq.${walletAddress},email.ilike.${normalizedWallet}`)
     .maybeSingle();
 
   if (data) {
-    const handle = data.handle || data.username || `user${normalizedWallet.slice(2, 8)}`;
+    const handle = data.handle || data.username || `@${(data.email || 'user').split('@')[0]}`;
+    const avatarUrl = data.avatar_url || `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(handle)}`;
+
     return {
       id: data.id || data.wallet_address,
       walletAddress: data.wallet_address || normalizedWallet,
       handle,
-      displayName: data.display_name || data.username || handle,
+      displayName: data.display_name || data.username || handle.replace('@', ''),
       bio: data.bio || null,
-      avatarUrl: data.avatar_url || `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(handle)}`,
+      avatarUrl,
       xHandle: data.x_handle || null,
       isVerified: Boolean(data.is_verified ?? true),
       createdAt: new Date(data.created_at || Date.now()),

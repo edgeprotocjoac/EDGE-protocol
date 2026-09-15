@@ -199,6 +199,7 @@ export const signupUser = async (req: Request, res: Response) => {
     // Create/update user record in 'users' database table
     const address = `UNSET_${userId}`;
     const currentNetwork = getNetworkFromReq(req);
+    const defaultAvatarUrl = `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`;
 
     await upsertUserRow({
       id: userId,
@@ -206,6 +207,7 @@ export const signupUser = async (req: Request, res: Response) => {
       handle: userHandle,
       username: userHandle,
       display_name: name,
+      avatar_url: defaultAvatarUrl,
       wallet_address: address,
       network: currentNetwork,
       is_verified: false,
@@ -308,6 +310,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
     const name = user.user_metadata?.displayName || userHandle.replace('@', '');
     const userAddress = `UNSET_${user.id}`;
     const currentNetwork = getNetworkFromReq(req);
+    const defaultAvatarUrl = `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`;
 
     // Sync verified email status into 'users' database table
     await upsertUserRow({
@@ -316,6 +319,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
       handle: userHandle,
       username: userHandle,
       display_name: name,
+      avatar_url: defaultAvatarUrl,
       wallet_address: userAddress,
       network: currentNetwork,
       is_verified: true,
@@ -332,7 +336,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
         address: `0x${user.id.replace(/-/g, '').substring(0, 40)}`,
         handle: userHandle,
         displayName: name,
-        avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`,
+        avatarUrl: defaultAvatarUrl,
         isVerified: true,
         isActive: false,
         is2FAEnabled: false,
@@ -376,6 +380,7 @@ export const loginUser = async (req: Request, res: Response) => {
     const session = data.session;
     const userHandle = user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`;
     const name = user.user_metadata?.displayName || userHandle.replace('@', '');
+    const defaultAvatarUrl = `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`;
 
     let totpSecret = user.user_metadata?.totp_secret;
     if (!totpSecret) {
@@ -401,6 +406,7 @@ export const loginUser = async (req: Request, res: Response) => {
       handle: userHandle,
       username: userHandle,
       display_name: name,
+      avatar_url: defaultAvatarUrl,
       wallet_address: userAddress,
       network: currentNetwork,
       is_verified: true,
@@ -426,7 +432,7 @@ export const loginUser = async (req: Request, res: Response) => {
         address: `0x${user.id.replace(/-/g, '').substring(0, 40)}`,
         handle: userHandle,
         displayName: name,
-        avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`,
+        avatarUrl: defaultAvatarUrl,
         isVerified: true,
         isActive: is2FASetup,
         is2FAEnabled: is2FASetup,
@@ -482,6 +488,7 @@ export const verify2FA = async (req: Request, res: Response) => {
         ...user.user_metadata,
         is2FASetup: true,
         is2FAEnabled: true,
+        totp_secret: totpSecret,
       },
     });
 
@@ -490,6 +497,7 @@ export const verify2FA = async (req: Request, res: Response) => {
     const userHandle = user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`;
     const displayName = user.user_metadata?.displayName || cleanEmail.split('@')[0];
     const currentNetwork = getNetworkFromReq(req);
+    const defaultAvatarUrl = `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`;
 
     await upsertUserRow({
       id: user.id,
@@ -497,11 +505,13 @@ export const verify2FA = async (req: Request, res: Response) => {
       handle: userHandle,
       username: userHandle,
       display_name: displayName,
+      avatar_url: defaultAvatarUrl,
       wallet_address: userAddress,
       network: currentNetwork,
       is_verified: true,
       is_active: true,
       is_2fa_enabled: true,
+      totp_secret: totpSecret,
       last_active: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -517,9 +527,9 @@ export const verify2FA = async (req: Request, res: Response) => {
         id: user.id,
         email: cleanEmail,
         address: `0x${user.id.replace(/-/g, '').substring(0, 40)}`,
-        handle: user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`,
-        displayName: user.user_metadata?.displayName || cleanEmail.split('@')[0],
-        avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(cleanEmail)}`,
+        handle: userHandle,
+        displayName,
+        avatarUrl: defaultAvatarUrl,
         isVerified: true,
         isActive: true,
         is2FAEnabled: true,
@@ -541,21 +551,34 @@ export const getAuthUser = async (req: any, res: Response) => {
       return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
 
-    const userHandle = user.user_metadata?.handle || `@${(user.email || '').split('@')[0]}`;
-    const name = user.user_metadata?.displayName || userHandle.replace('@', '');
+    const { data: dbUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const cleanEmail = user.email || dbUser?.email || '';
+    const userHandle = dbUser?.handle || user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`;
+    const name = dbUser?.display_name || user.user_metadata?.displayName || userHandle.replace('@', '');
+    const avatarUrl = dbUser?.avatar_url || `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`;
+
+    const is2FA = dbUser?.is_2fa_enabled ?? (user.user_metadata?.is2FASetup === true);
+    const isActive = dbUser?.is_active ?? (user.user_metadata?.is2FASetup === true);
 
     return res.json({
       success: true,
       user: {
         id: user.id,
-        email: user.email,
-        address: `0x${user.id.replace(/-/g, '').substring(0, 40)}`,
+        email: cleanEmail,
+        address: dbUser?.wallet_address && dbUser.wallet_address.length === 42 ? dbUser.wallet_address : `0x${user.id.replace(/-/g, '').substring(0, 40)}`,
         handle: userHandle,
         displayName: name,
-        avatarUrl: `https://api.dicebear.com/9.x/avataaars/png?seed=${encodeURIComponent(userHandle)}`,
-        isVerified: true,
-        isActive: user.user_metadata?.is2FASetup === true,
-        is2FAEnabled: user.user_metadata?.is2FASetup === true,
+        bio: dbUser?.bio || null,
+        avatarUrl,
+        isVerified: dbUser?.is_verified ?? true,
+        isActive,
+        is2FAEnabled: is2FA,
+        totpSecret: dbUser?.totp_secret || user.user_metadata?.totp_secret,
       },
     });
   } catch (err: any) {
