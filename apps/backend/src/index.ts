@@ -57,6 +57,7 @@ app.use('/api/social/attribution', attributionRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/social/proposals', marketProposalRoutes);
+app.use('/api/market-proposals', marketProposalRoutes);
 app.use('/api/search', searchRoutes);
 
 app.get('/health', (req, res) => {

@@ -43,13 +43,23 @@ export async function getProfileByWallet(
   walletAddress: string
 ): Promise<ProfileDTO | null> {
   const supabase = getSupabaseClient();
-  const normalizedWallet = walletAddress.toLowerCase();
+  const rawParam = walletAddress.trim();
+  const normalizedWallet = rawParam.toLowerCase();
 
-  // Query users table by wallet_address, ID, or email
+  // Parse 0x+32hex or UNSET_ into standard UUID format if needed
+  let possibleUuid = rawParam;
+  if (normalizedWallet.startsWith('0x') && normalizedWallet.length === 34) {
+    const hex = normalizedWallet.slice(2);
+    possibleUuid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  } else if (normalizedWallet.startsWith('unset_')) {
+    possibleUuid = rawParam.substring(6);
+  }
+
+  // Query users table by wallet_address, id UUID, email, or UNSET_UUID
   const { data } = await supabase
     .from('users')
     .select('*')
-    .or(`wallet_address.ilike.${normalizedWallet},id.eq.${walletAddress},email.ilike.${normalizedWallet}`)
+    .or(`wallet_address.ilike.${normalizedWallet},id.eq.${possibleUuid},email.ilike.${normalizedWallet},wallet_address.ilike.UNSET_${possibleUuid}`)
     .maybeSingle();
 
   if (data) {

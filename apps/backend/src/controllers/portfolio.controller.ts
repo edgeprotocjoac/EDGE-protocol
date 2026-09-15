@@ -9,7 +9,7 @@ export const getUserPortfolio = async (req: Request, res: Response) => {
     // Fetch all orders for this user
     const { data: orders, error } = await supabase
       .from('orders')
-      .select('*, markets(title, image_url, slug)')
+      .select('*')
       .ilike('wallet_address', String(address))
       .eq('network', String(network));
 
@@ -17,19 +17,39 @@ export const getUserPortfolio = async (req: Request, res: Response) => {
       return res.status(500).json({ error: error.message });
     }
 
+    if (!orders || orders.length === 0) {
+      return res.json({ positions: [], history: [] });
+    }
+
+    // Extract unique market_ids
+    const marketIds = Array.from(new Set(orders.map(o => o.market_id).filter(Boolean)));
+
+    let marketMap: Record<string, any> = {};
+    if (marketIds.length > 0) {
+      const { data: markets } = await supabase
+        .from('markets')
+        .select('id, title, image_url, slug')
+        .in('id', marketIds);
+
+      markets?.forEach(m => {
+        marketMap[m.id] = m;
+      });
+    }
+
     // Aggregate positions by market
     const positions: Record<string, any> = {};
 
-    orders?.forEach(order => {
+    orders.forEach(order => {
       const marketId = order.market_id;
+      const marketInfo = marketMap[marketId] || {};
 
       if (order.status === 'FILLED') {
         if (!positions[marketId]) {
           positions[marketId] = {
             marketId,
-            marketTitle: order.markets?.title || 'Unknown Market',
-            marketImage: order.markets?.image_url || '',
-            marketSlug: order.markets?.slug || '',
+            marketTitle: marketInfo.title || 'Unknown Market',
+            marketImage: marketInfo.image_url || '',
+            marketSlug: marketInfo.slug || '',
             yesShares: 0,
             noShares: 0,
             totalInvested: 0
@@ -49,8 +69,11 @@ export const getUserPortfolio = async (req: Request, res: Response) => {
       }
     });
 
-    // Sort orders by most recent for history
-    const history = orders?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) || [];
+    // Attach market info to orders history as well
+    const history = orders.map(order => ({
+      ...order,
+      markets: marketMap[order.market_id] || null,
+    })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     res.json({ positions: Object.values(positions), history });
   } catch (err: any) {
