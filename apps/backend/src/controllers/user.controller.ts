@@ -22,14 +22,19 @@ const upsertUserRow = async (row: Record<string, any>) => {
   if (row.id) {
     const { data: existing } = await supabase
       .from('users')
-      .select('id, wallet_address')
+      .select('id, wallet_address, encrypted_private_key')
       .eq('id', row.id)
       .maybeSingle();
 
     if (existing) {
+      const updateData = { ...row };
+      // Preserve existing real wallet address if payload provides UNSET placeholder
+      if (existing.wallet_address && existing.wallet_address.length === 42 && row.wallet_address?.startsWith('UNSET')) {
+        delete updateData.wallet_address;
+      }
       const { error: updateErr } = await supabase
         .from('users')
-        .update(row)
+        .update(updateData)
         .eq('id', row.id);
       if (!updateErr) {
         console.log(`[UserController] 📊 'public.users' record updated by id: ${row.id}`);
@@ -192,8 +197,8 @@ export const signupUser = async (req: Request, res: Response) => {
     }
 
     // Create/update user record in 'users' database table
-    const address = `0x${userId.replace(/-/g, '').substring(0, 40)}`;
-    const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
+    const address = `UNSET_${userId}`;
+    const currentNetwork = getNetworkFromReq(req);
 
     await upsertUserRow({
       id: userId,
@@ -301,8 +306,8 @@ export const verifyEmail = async (req: Request, res: Response) => {
     // Generate session token or sign in
     const userHandle = user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`;
     const name = user.user_metadata?.displayName || userHandle.replace('@', '');
-    const userAddress = `0x${user.id.replace(/-/g, '').substring(0, 40)}`;
-    const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
+    const userAddress = `UNSET_${user.id}`;
+    const currentNetwork = getNetworkFromReq(req);
 
     // Sync verified email status into 'users' database table
     await upsertUserRow({
@@ -386,8 +391,8 @@ export const loginUser = async (req: Request, res: Response) => {
     const is2FASetup = user.user_metadata?.is2FASetup === true || user.user_metadata?.is2FAEnabled === true;
     console.log(`[UserController] 🔑 Login success for ${cleanEmail}. 2FA Status: ${is2FASetup ? 'ALREADY SETUP (Direct 2FA Prompt)' : 'NOT SETUP YET (QR Code Setup Required)'}`);
 
-    const userAddress = `0x${user.id.replace(/-/g, '').substring(0, 40)}`;
-    const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
+    const userAddress = `UNSET_${user.id}`;
+    const currentNetwork = getNetworkFromReq(req);
 
     // Sync user data to 'users' database table
     await upsertUserRow({
@@ -481,10 +486,10 @@ export const verify2FA = async (req: Request, res: Response) => {
     });
 
     // Sync activation & 2FA status into 'users' database table
-    const userAddress = `0x${user.id.replace(/-/g, '').substring(0, 40)}`;
+    const userAddress = `UNSET_${user.id}`;
     const userHandle = user.user_metadata?.handle || `@${cleanEmail.split('@')[0]}`;
     const displayName = user.user_metadata?.displayName || cleanEmail.split('@')[0];
-    const currentNetwork = String(process.env.NETWORK || 'testnet').toLowerCase();
+    const currentNetwork = getNetworkFromReq(req);
 
     await upsertUserRow({
       id: user.id,
@@ -561,25 +566,29 @@ export const getAuthUser = async (req: any, res: Response) => {
 /**
  * Helper to resolve user from request parameters or auth session
  */
+/**
+ * Helper to resolve user from request parameters or auth session
+ */
 const resolveUserFromReq = async (req: any) => {
   if (req.user) return req.user;
-  const param = String(req.body.email || req.query.email || req.body.address || req.query.address || req.body.identifier || '').trim().toLowerCase();
+  const param = String(req.body?.email || req.query?.email || req.body?.address || req.query?.address || req.body?.identifier || '').trim().toLowerCase();
   
-  const { data: userList } = await supabase.auth.admin.listUsers();
-  if (!userList || !userList.users) return null;
+  const { data: userList, error } = await supabase.auth.admin.listUsers();
+  if (error || !userList || !userList.users) return null;
 
   if (param) {
     const found = userList.users.find(u =>
-      u.email?.toLowerCase() === param ||
-      u.id === param ||
-      (u.user_metadata?.handle && u.user_metadata.handle.toLowerCase() === param.toLowerCase()) ||
-      (u.user_metadata?.handle && `@${u.user_metadata.handle.toLowerCase().replace('@', '')}` === param.toLowerCase())
+      u && (
+        (u.email && u.email.toLowerCase() === param) ||
+        u.id === param ||
+        (u.user_metadata?.handle && u.user_metadata.handle.toLowerCase() === param.toLowerCase()) ||
+        (u.user_metadata?.handle && `@${u.user_metadata.handle.toLowerCase().replace('@', '')}` === param.toLowerCase())
+      )
     );
     if (found) return found;
   }
 
-  // Fallback to first user in list if single user dev environment
-  return userList.users[0] || null;
+  return userList.users.find(u => u != null) || null;
 };
 
 /**
@@ -605,7 +614,7 @@ export const generateWallet = async (req: Request, res: Response) => {
 
     const isPlaceholder = !existingUser?.wallet_address || 
       existingUser.wallet_address.length !== 42 || 
-      existingUser.wallet_address.toLowerCase().startsWith(`0x${user.id.replace(/-/g, '').substring(0, 30)}`.toLowerCase());
+      existingUser.wallet_address.startsWith('UNSET');
 
     if (existingUser && existingUser.encrypted_private_key && !isPlaceholder) {
       let decryptedKey = '';
@@ -621,7 +630,7 @@ export const generateWallet = async (req: Request, res: Response) => {
         address: existingUser.wallet_address,
         privateKey: decryptedKey || undefined,
         network: existingUser.network || currentNetwork,
-        usdgBalance: 1000,
+        usdgBalance: 0,
         message: 'Wallet already generated.',
       });
     }
@@ -630,24 +639,38 @@ export const generateWallet = async (req: Request, res: Response) => {
     const { address, privateKey } = generateEvmWallet();
     const encryptedKey = encryptPrivateKey(privateKey);
 
-    // Update 'users' database table
-    await upsertUserRow({
-      id: user.id,
-      email,
-      handle: user.user_metadata?.handle || `@${email.split('@')[0]}`,
-      username: user.user_metadata?.handle || `@${email.split('@')[0]}`,
-      display_name: user.user_metadata?.displayName || email.split('@')[0],
-      wallet_address: address,
-      network: currentNetwork,
-      encrypted_private_key: encryptedKey,
-      is_verified: true,
-      is_active: true,
-      is_2fa_enabled: true,
-      last_active: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
+    // Update 'users' database table directly by id
+    const { error: updateErr } = await supabase
+      .from('users')
+      .update({
+        wallet_address: address,
+        encrypted_private_key: encryptedKey,
+        network: currentNetwork,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id);
 
-    console.log(`[UserController] ✅ EVM Wallet successfully generated for ${email}: ${address} (${currentNetwork})`);
+    if (updateErr) {
+      console.warn(`[UserController] Update by id failed during generateWallet: ${updateErr.message}, falling back to upsert...`);
+      await upsertUserRow({
+        id: user.id,
+        email,
+        handle: user.user_metadata?.handle || `@${email.split('@')[0]}`,
+        username: user.user_metadata?.handle || `@${email.split('@')[0]}`,
+        display_name: user.user_metadata?.displayName || email.split('@')[0],
+        wallet_address: address,
+        network: currentNetwork,
+        encrypted_private_key: encryptedKey,
+        is_verified: true,
+        is_active: true,
+        is_2fa_enabled: true,
+        last_active: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    console.log(`[UserController] ✅ EVM Wallet successfully generated & saved to DB for ${email}: ${address} (${currentNetwork})`);
 
     return res.json({
       success: true,
@@ -655,7 +678,7 @@ export const generateWallet = async (req: Request, res: Response) => {
       address,
       privateKey,
       network: currentNetwork,
-      usdgBalance: 1000,
+      usdgBalance: 0,
       message: 'Wallet generated successfully!',
     });
   } catch (err: any) {
@@ -677,13 +700,13 @@ export const getWalletDetails = async (req: Request, res: Response) => {
 
     const { data: dbUser } = await supabase
       .from('users')
-      .select('wallet_address, encrypted_private_key, network')
+      .select('wallet_address, encrypted_private_key, network, historical_pnl_usdg')
       .eq('id', user.id)
       .maybeSingle();
 
     const isPlaceholder = !dbUser?.wallet_address || 
       dbUser.wallet_address.length !== 42 || 
-      dbUser.wallet_address.toLowerCase().startsWith(`0x${user.id.replace(/-/g, '').substring(0, 30)}`.toLowerCase());
+      dbUser.wallet_address.startsWith('UNSET');
 
     if (!dbUser || !dbUser.encrypted_private_key || isPlaceholder) {
       return res.json({
@@ -698,7 +721,7 @@ export const getWalletDetails = async (req: Request, res: Response) => {
       hasWallet: true,
       address: dbUser.wallet_address,
       network: dbUser.network || currentNetwork,
-      usdgBalance: 1000,
+      usdgBalance: Number(dbUser.historical_pnl_usdg || 0),
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
