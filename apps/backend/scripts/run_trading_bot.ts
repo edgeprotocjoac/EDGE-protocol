@@ -40,7 +40,7 @@ const BOT_WALLETS = [
     new ethers.Wallet(process.env.PRIVKEY_BOT_E!)
 ];
 
-const TICK_INTERVAL_MS = 2500;
+const TICK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes interval instead of 2.5s to prevent cloud egress exhaustion
 const WEATHER_KEYWORDS = ['RAIN', 'TEMP', 'SNOW', 'FIRE', 'HEAT', 'FLOOD', 'TYP3', 'WEATHER'];
 
 function isWeatherMarket(marketId: string): boolean {

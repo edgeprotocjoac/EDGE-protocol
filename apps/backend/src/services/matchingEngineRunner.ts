@@ -2,7 +2,7 @@ import { matchPerpOrdersAsync } from './perpsMatchingEngine';
 import { supabase } from '../utils/supabase';
 
 const NETWORK = 'testnet';
-const INTERVAL_MS = 6000;
+const INTERVAL_MS = 3 * 60 * 1000; // 3 minutes interval to prevent egress quota drain
 
 export const startMatchingEngineRunner = () => {
     console.log(`🚀 [Matching Engine Service] Started auto-matching loop.`);

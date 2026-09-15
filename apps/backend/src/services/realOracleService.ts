@@ -1,7 +1,7 @@
 import { supabase } from '../utils/supabase';
 
 const NETWORK = 'testnet';
-const INTERVAL_MS = 10000; // Update real oracle index every 10 seconds to avoid RPC/rate limit overload
+const INTERVAL_MS = 5 * 60 * 1000; // Update real oracle index every 5 minutes to conserve Supabase egress bandwidth
 
 // City coordinates for Open-Meteo Weather API
 const WEATHER_LOCATIONS: Record<string, { lat: number; lng: number; type: 'rain' | 'temp' | 'wind'; threshold: number }> = {

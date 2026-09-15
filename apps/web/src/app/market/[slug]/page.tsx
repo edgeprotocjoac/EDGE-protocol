@@ -51,7 +51,7 @@ export default function MarketPage({ params }: { params: Promise<{ slug: string 
       if (!res.ok) throw new Error('Failed to fetch trades');
       return res.json();
     },
-    refetchInterval: 1500, // Poll every 1.5s for near-realtime chart updates
+    refetchInterval: 5 * 60 * 1000, // Poll every 5 minutes fallback (realtime updates handled by Supabase channels below)
   });
 
   useEffect(() => {

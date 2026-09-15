@@ -2,33 +2,52 @@ const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-// Read credentials strictly from environment variables
-const oldUrl = process.env.OLD_SUPABASE_URL || process.env.SUPABASE_URL;
-const oldKey = process.env.OLD_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Read credentials strictly from environment variables to prevent leaking keys in Git
+const oldUrl = process.env.OLD_SUPABASE_URL || process.env.SUPABASE_URL_OLD;
+const oldKey = process.env.OLD_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY_OLD;
 
-const newUrl = process.env.SUPABASE_URL;
-const newKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const newUrl = process.env.NEW_SUPABASE_URL || process.env.SUPABASE_URL;
+const newKey = process.env.NEW_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!oldUrl || !oldKey) {
+  console.error('❌ Error: OLD_SUPABASE_URL and OLD_SUPABASE_SERVICE_ROLE_KEY must be provided via environment variables.');
+  process.exit(1);
+}
 
 if (!newUrl || !newKey) {
-  console.error('❌ Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be defined in apps/backend/.env');
+  console.error('❌ Error: NEW_SUPABASE_URL (or SUPABASE_URL) and NEW_SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_ROLE_KEY) must be provided in apps/backend/.env.');
   process.exit(1);
 }
 
 const supabaseOld = createClient(oldUrl, oldKey);
 const supabaseNew = createClient(newUrl, newKey);
 
-// Tables to migrate to new Supabase project
+// Complete tables list to migrate to new Supabase project
 const tableList = [
   'users',
   'creator_stats',
   'markets',
   'orders',
+  'trades',
   'callouts',
   'callout_snapshots',
+  'callout_results',
+  'follows',
+  'likes',
+  'comments',
+  'comment_likes',
+  'reposts',
+  'saves',
+  'notifications',
+  'market_proposals',
   'perp_markets',
   'perp_positions',
   'perp_orders',
   'perp_fills',
+  'perp_funding_rates',
+  'perp_liquidations',
+  'perp_index_prices',
+  'perp_mark_prices',
   'logs',
 ];
 
